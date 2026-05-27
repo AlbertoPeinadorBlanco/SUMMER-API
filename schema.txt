@@ -1,0 +1,88 @@
+<USER_REQUEST>
+CREATE AN API FOR THE SURF WEB APP WITH NODE AND EXPRESS. CREATE TABLE roles (
+    id   TINYINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(20) NOT NULL UNIQUE  -- 'user', 'instructor', 'admin'
+);
+
+CREATE TABLE class_types (
+    id   TINYINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(20) NOT NULL UNIQUE  -- 'class', 'course'
+); i HAVE CREATED THE DB SO FOLLOW THIS SCHEMA
+
+CREATE TABLE payment_methods (
+    id   TINYINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(50) NOT NULL UNIQUE  -- 'credit_card', 'paypal', 'bank_transfer', etc.
+);
+
+CREATE TABLE booking_statuses (
+    id   TINYINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(20) NOT NULL UNIQUE  -- 'pending', 'confirmed', 'cancelled', 'completed'
+);
+
+-- ─────────────────────────────────────────
+-- USERS
+-- ─────────────────────────────────────────
+
+CREATE TABLE users (
+    id            INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    username      VARCHAR(50)  NOT NULL UNIQUE,
+    email         VARCHAR(100) NOT NULL UNIQUE,
+    password_hash VARCHAR(255) NOT NULL,
+    first_name    VARCHAR(50)  NOT NULL,
+    last_name     VARCHAR(50)  NOT NULL,
+    phone         VARCHAR(20),
+    is_active     BOOLEAN      NOT NULL DEFAULT TRUE,
+    created_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+-- Junction table — a user can hold multiple roles
+CREATE TABLE user_roles (
+    user_id     INT UNSIGNED     NOT NULL,
+    role_id     TINYINT UNSIGNED NOT NULL,
+    assigned_at DATETIME         NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id, role_id),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (role_id) REFERENCES roles(id)
+);
+
+-- ──────────
+<truncated 3031 bytes>
+────────────────
+
+CREATE TABLE booking_payments (
+    id                INT UNSIGNED     AUTO_INCREMENT PRIMARY KEY,
+    booking_id        INT UNSIGNED     NOT NULL,
+    payment_method_id TINYINT UNSIGNED NOT NULL,
+    amount            DECIMAL(10,2)    NOT NULL,
+    transaction_ref   VARCHAR(100),
+    paid_at           DATETIME         NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (booking_id)        REFERENCES bookings(id) ON DELETE CASCADE,
+    FOREIGN KEY (payment_method_id) REFERENCES payment_methods(id)
+);
+
+-- ─────────────────────────────────────────
+-- SEED DATA
+-- ─────────────────────────────────────────
+
+INSERT INTO roles (name)            VALUES ('user'), ('instructor'), ('admin');
+INSERT INTO class_types (name)      VALUES ('class'), ('course');
+INSERT INTO booking_statuses (name) VALUES ('pending'), ('confirmed'), ('cancelled'), ('completed');
+INSERT INTO payment_methods (name)  VALUES ('credit_card'), ('debit_card'), ('paypal'), ('bank_transfer'), ('cash');
+
+</USER_REQUEST>
+<ADDITIONAL_METADATA>
+The current local time is: 2026-05-26T17:23:51+02:00.
+
+The user's current state is as follows:
+Active Document: c:\Users\jazzm\Desktop\SUMMER\src\lib\stores\currency.ts (LANGUAGE_TYPESCRIPT)
+Cursor is on line: 1
+Other open documents:
+- c:\Users\jazzm\Desktop\SUMMER\src\lib\stores\currency.ts (LANGUAGE_TYPESCRIPT)
+- c:\Users\jazzm\Desktop\SUMMER\src\routes\+layout.svelte (LANGUAGE_SVELTE)
+Running terminal commands:
+- npm run dev (in c:\Users\jazzm\Desktop\SUMMER, running for 48m22s)
+</ADDITIONAL_METADATA>
+<USER_SETTINGS_CHANGE>
+The user changed setting `Model Selection` from None to Gemini 3.1 Pro (High). No need to comment on this change if the user doesn't ask about it. If reporting what model you are, please use a human readable name instead of the exact string.
+</USER_SETTINGS_CHANGE>
