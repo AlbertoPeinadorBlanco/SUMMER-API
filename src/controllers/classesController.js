@@ -7,12 +7,15 @@ exports.getAllClasses = async (req, res) => {
             SELECT c.id, c.instructor_id, ct.name as class_type, c.title, c.description, 
                    c.price, c.capacity, c.duration_minutes, c.starts_at, c.ends_at, 
                    c.location, c.is_online, c.image_url, c.is_active, c.created_at,
-                   c.title_es, c.description_es,
+                   c.title_es, c.description_es, c.difficulty_level,
+                   (SELECT COUNT(*) FROM bookings b WHERE b.class_id = c.id AND b.status_id != 3) as bookings_count,
                    u.first_name, u.last_name, u.profile_picture_url, u.username as instructor_username,
-                   u.email, u.phone
+                   u.email, u.phone, u.tier as instructor_tier,
+                   ip.video_url, ip.booking_link, ip.available_today
             FROM classes c
             JOIN class_types ct ON c.class_type_id = ct.id
             JOIN users u ON c.instructor_id = u.id
+            LEFT JOIN instructor_profiles ip ON u.id = ip.user_id
         `;
         const params = [];
 
@@ -20,6 +23,8 @@ exports.getAllClasses = async (req, res) => {
             query += ` WHERE c.instructor_id = ?`;
             params.push(req.query.instructor_id);
         }
+
+        query += ` ORDER BY CASE WHEN u.tier = 'premium' THEN 1 ELSE 2 END ASC, c.created_at DESC`;
 
         const [rows] = await pool.query(query, params);
         res.json(rows);
@@ -36,12 +41,15 @@ exports.getClassById = async (req, res) => {
             SELECT c.id, c.instructor_id, ct.name as class_type, c.title, c.description, 
                    c.price, c.capacity, c.duration_minutes, c.starts_at, c.ends_at, 
                    c.location, c.is_online, c.image_url, c.is_active, c.created_at,
-                   c.title_es, c.description_es,
+                   c.title_es, c.description_es, c.difficulty_level,
+                   (SELECT COUNT(*) FROM bookings b WHERE b.class_id = c.id AND b.status_id != 3) as bookings_count,
                    u.first_name, u.last_name, u.profile_picture_url, u.username as instructor_username,
-                   u.email, u.phone
+                   u.email, u.phone, u.tier as instructor_tier,
+                   ip.video_url, ip.booking_link, ip.available_today
             FROM classes c
             JOIN class_types ct ON c.class_type_id = ct.id
             JOIN users u ON c.instructor_id = u.id
+            LEFT JOIN instructor_profiles ip ON u.id = ip.user_id
             WHERE c.id = ?
         `, [id]);
         
@@ -58,15 +66,15 @@ exports.getClassById = async (req, res) => {
 exports.createClass = async (req, res) => {
     const { 
         instructor_id, class_type_id, title, description, title_es, description_es, price, 
-        capacity, duration_minutes, starts_at, ends_at, location, is_online 
+        capacity, duration_minutes, starts_at, ends_at, location, is_online, difficulty_level
     } = req.body;
     
     try {
         const [result] = await pool.query(
             `INSERT INTO classes 
-            (instructor_id, class_type_id, title, description, title_es, description_es, price, capacity, duration_minutes, starts_at, ends_at, location, is_online) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [instructor_id, class_type_id, title, description, title_es || null, description_es || null, price, capacity, duration_minutes, starts_at, ends_at, location, is_online]
+            (instructor_id, class_type_id, title, description, title_es, description_es, price, capacity, duration_minutes, starts_at, ends_at, location, is_online, difficulty_level) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [instructor_id, class_type_id, title, description, title_es || null, description_es || null, price, capacity, duration_minutes, starts_at, ends_at, location, is_online, difficulty_level || 1]
         );
         res.status(201).json({ message: 'Class created', id: result.insertId });
     } catch (error) {
@@ -79,7 +87,7 @@ exports.updateClass = async (req, res) => {
     const { id } = req.params;
     const { 
         class_type_id, title, description, title_es, description_es, price, 
-        capacity, duration_minutes, starts_at, ends_at, location, is_online 
+        capacity, duration_minutes, starts_at, ends_at, location, is_online, difficulty_level
     } = req.body;
     
     try {
@@ -87,9 +95,9 @@ exports.updateClass = async (req, res) => {
             `UPDATE classes 
              SET class_type_id = ?, title = ?, description = ?, title_es = ?, description_es = ?, price = ?, 
                  capacity = ?, duration_minutes = ?, starts_at = ?, ends_at = ?, 
-                 location = ?, is_online = ?
+                 location = ?, is_online = ?, difficulty_level = ?
              WHERE id = ?`,
-            [class_type_id, title, description, title_es || null, description_es || null, price, capacity, duration_minutes, starts_at, ends_at, location, is_online, id]
+            [class_type_id, title, description, title_es || null, description_es || null, price, capacity, duration_minutes, starts_at, ends_at, location, is_online, difficulty_level || 1, id]
         );
 
         if (result.affectedRows === 0) {
