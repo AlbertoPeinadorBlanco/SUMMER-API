@@ -1,4 +1,5 @@
 const pool = require('../config/db');
+const { logAdminAction } = require('../utils/auditLogger');
 
 exports.getAds = async (req, res) => {
     const { location } = req.query;
@@ -9,7 +10,7 @@ exports.getAds = async (req, res) => {
             query += ' AND location = ?';
             params.push(location);
         }
-        query += ' ORDER BY created_at DESC';
+        query += ' ORDER BY display_order ASC, created_at DESC';
         const [rows] = await pool.query(query, params);
         res.json(rows);
     } catch (error) {
@@ -20,7 +21,7 @@ exports.getAds = async (req, res) => {
 // Admin: Get ALL ads (including inactive ones)
 exports.getAllAdsAdmin = async (req, res) => {
     try {
-        const [rows] = await pool.query('SELECT * FROM shop_ads ORDER BY created_at DESC');
+        const [rows] = await pool.query('SELECT * FROM shop_ads ORDER BY display_order ASC, created_at DESC');
         res.json(rows);
     } catch (error) {
         res.status(500).json({ message: 'Error fetching admin ads', error: error.message });
@@ -29,13 +30,15 @@ exports.getAllAdsAdmin = async (req, res) => {
 
 // Admin: Create Ad
 exports.createAd = async (req, res) => {
-    const { shop_name, location, image_url, link_url, is_active } = req.body;
+    const { shop_name, location, image_url, link_url, is_active, display_order } = req.body;
     try {
         const [result] = await pool.query(
-            'INSERT INTO shop_ads (shop_name, location, image_url, link_url, is_active) VALUES (?, ?, ?, ?, ?)',
-            [shop_name, location, image_url, link_url, is_active === undefined ? 1 : (is_active ? 1 : 0)]
+            'INSERT INTO shop_ads (shop_name, location, image_url, link_url, is_active, display_order) VALUES (?, ?, ?, ?, ?, ?)',
+            [shop_name, location, image_url, link_url, is_active === undefined ? 1 : (is_active ? 1 : 0), display_order || 0]
         );
-        res.status(201).json({ message: 'Ad created successfully', id: result.insertId });
+        const newId = result.insertId;
+        await logAdminAction(req, 'CREATE', 'shop_ads', newId, { shop_name });
+        res.status(201).json({ message: 'Ad created successfully', id: newId });
     } catch (error) {
         res.status(500).json({ message: 'Error creating ad', error: error.message });
     }
@@ -44,15 +47,16 @@ exports.createAd = async (req, res) => {
 // Admin: Update Ad
 exports.updateAd = async (req, res) => {
     const { id } = req.params;
-    const { shop_name, location, image_url, link_url, is_active } = req.body;
+    const { shop_name, location, image_url, link_url, is_active, display_order } = req.body;
     try {
         const [result] = await pool.query(
-            'UPDATE shop_ads SET shop_name = ?, location = ?, image_url = ?, link_url = ?, is_active = ? WHERE id = ?',
-            [shop_name, location, image_url, link_url, is_active ? 1 : 0, id]
+            'UPDATE shop_ads SET shop_name = ?, location = ?, image_url = ?, link_url = ?, is_active = ?, display_order = ? WHERE id = ?',
+            [shop_name, location, image_url, link_url, is_active ? 1 : 0, display_order || 0, id]
         );
         if (result.affectedRows === 0) {
             return res.status(404).json({ message: 'Ad not found' });
         }
+        await logAdminAction(req, 'UPDATE', 'shop_ads', id, { shop_name });
         res.json({ message: 'Ad updated successfully' });
     } catch (error) {
         res.status(500).json({ message: 'Error updating ad', error: error.message });
@@ -67,6 +71,7 @@ exports.deleteAd = async (req, res) => {
         if (result.affectedRows === 0) {
             return res.status(404).json({ message: 'Ad not found' });
         }
+        await logAdminAction(req, 'DELETE', 'shop_ads', id);
         res.json({ message: 'Ad deleted successfully' });
     } catch (error) {
         res.status(500).json({ message: 'Error deleting ad', error: error.message });

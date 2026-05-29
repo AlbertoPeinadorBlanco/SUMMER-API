@@ -1,4 +1,5 @@
 const pool = require('../config/db');
+const { logUserAction } = require('../utils/auditLogger');
 
 // Get all bookings
 exports.getAllBookings = async (req, res) => {
@@ -55,6 +56,7 @@ exports.createBooking = async (req, res) => {
             );
         }
 
+        await logUserAction(req, 'CREATE_BOOKING', 'bookings', result.insertId, { class_id });
         res.status(201).json({ message: 'Booking created', id: result.insertId });
     } catch (error) {
         if (error.code === 'ER_DUP_ENTRY') {
@@ -137,6 +139,7 @@ exports.updateBookingStatus = async (req, res) => {
             );
         }
 
+        await logUserAction(req, 'UPDATE_BOOKING_STATUS', 'bookings', id, { status_id });
         res.json({ message: 'Booking status updated' });
     } catch (error) {
         res.status(500).json({ message: 'Error updating booking status', error: error.message });
@@ -151,6 +154,7 @@ exports.deleteBooking = async (req, res) => {
         if (result.affectedRows === 0) {
             return res.status(404).json({ message: 'Booking not found' });
         }
+        await logUserAction(req, 'DELETE_BOOKING', 'bookings', id);
         res.json({ message: 'Booking deleted successfully' });
     } catch (error) {
         res.status(500).json({ message: 'Error deleting booking', error: error.message });

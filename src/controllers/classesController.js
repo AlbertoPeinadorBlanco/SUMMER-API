@@ -1,4 +1,5 @@
 const pool = require('../config/db');
+const { logUserAction } = require('../utils/auditLogger');
 
 // Get all classes
 exports.getAllClasses = async (req, res) => {
@@ -27,6 +28,7 @@ exports.getAllClasses = async (req, res) => {
         query += ` ORDER BY CASE WHEN u.tier = 'premium' THEN 1 ELSE 2 END ASC, c.created_at DESC`;
 
         const [rows] = await pool.query(query, params);
+        res.set('Cache-Control', 'public, max-age=300'); // Cache for 5 minutes
         res.json(rows);
     } catch (error) {
         res.status(500).json({ message: 'Error fetching classes', error: error.message });
@@ -76,6 +78,7 @@ exports.createClass = async (req, res) => {
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [instructor_id, class_type_id, title, description, title_es || null, description_es || null, price, capacity, duration_minutes, starts_at, ends_at, location, is_online, difficulty_level || 1]
         );
+        await logUserAction(req, 'CREATE_CLASS', 'classes', result.insertId);
         res.status(201).json({ message: 'Class created', id: result.insertId });
     } catch (error) {
         res.status(500).json({ message: 'Error creating class', error: error.message });
@@ -103,6 +106,7 @@ exports.updateClass = async (req, res) => {
         if (result.affectedRows === 0) {
             return res.status(404).json({ message: 'Class not found' });
         }
+        await logUserAction(req, 'UPDATE_CLASS', 'classes', id);
         res.json({ message: 'Class updated' });
     } catch (error) {
         res.status(500).json({ message: 'Error updating class', error: error.message });
@@ -117,6 +121,7 @@ exports.deleteClass = async (req, res) => {
         if (result.affectedRows === 0) {
             return res.status(404).json({ message: 'Class not found' });
         }
+        await logUserAction(req, 'DELETE_CLASS', 'classes', id);
         res.json({ message: 'Class deleted' });
     } catch (error) {
         res.status(500).json({ message: 'Error deleting class', error: error.message });
@@ -143,6 +148,7 @@ exports.uploadPicture = async (req, res) => {
             return res.status(404).json({ message: 'Class not found' });
         }
 
+        await logUserAction(req, 'UPLOAD_CLASS_PICTURE', 'classes', id);
         res.json({ message: 'Picture uploaded successfully', image_url: imageUrl });
     } catch (error) {
         res.status(500).json({ message: 'Error uploading picture', error: error.message });

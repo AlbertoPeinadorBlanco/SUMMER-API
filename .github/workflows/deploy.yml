@@ -1,0 +1,38 @@
+name: Deploy to Hetzner VPS
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    name: Build & Deploy
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ── SSH into the VPS and redeploy ─────────────────────────────────────
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            set -e
+
+            cd /opt/surfmarket
+
+            # Pull latest code
+            git pull origin main
+
+            # Rebuild and restart only changed containers (zero-downtime rolling update)
+            docker compose pull
+            docker compose up -d --build --remove-orphans
+
+            # Remove unused images to keep disk clean
+            docker image prune -f
+
+            echo "✅ Deployment complete"

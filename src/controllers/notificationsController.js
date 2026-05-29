@@ -1,4 +1,5 @@
 const pool = require('../config/db');
+const { logAdminAction } = require('../utils/auditLogger');
 
 // ---- User Endpoints ----
 
@@ -57,7 +58,9 @@ exports.createNotification = async (req, res) => {
             'INSERT INTO notifications (user_id, type, message) VALUES (?, ?, ?)',
             [user_id, type || 'admin_message', message]
         );
-        res.status(201).json({ message: 'Notification created successfully', id: result.insertId });
+        const newId = result.insertId;
+        await logAdminAction(req, 'CREATE', 'notifications', newId, { user_id, type });
+        res.status(201).json({ message: 'Notification created successfully', id: newId });
     } catch (error) {
         res.status(500).json({ message: 'Error creating notification', error: error.message });
     }
@@ -75,6 +78,7 @@ exports.updateNotification = async (req, res) => {
         if (result.affectedRows === 0) {
             return res.status(404).json({ message: 'Notification not found' });
         }
+        await logAdminAction(req, 'UPDATE', 'notifications', id, { type });
         res.json({ message: 'Notification updated successfully' });
     } catch (error) {
         res.status(500).json({ message: 'Error updating notification', error: error.message });
@@ -89,6 +93,7 @@ exports.deleteNotification = async (req, res) => {
         if (result.affectedRows === 0) {
             return res.status(404).json({ message: 'Notification not found' });
         }
+        await logAdminAction(req, 'DELETE', 'notifications', id);
         res.json({ message: 'Notification deleted successfully' });
     } catch (error) {
         res.status(500).json({ message: 'Error deleting notification', error: error.message });

@@ -1,11 +1,12 @@
 const pool = require('../config/db');
 const bcrypt = require('bcryptjs');
+const { logAdminAction } = require('../utils/auditLogger');
 
 // Get all users with their roles
 exports.getAllUsers = async (req, res) => {
     try {
         const query = `
-            SELECT u.id, u.username, u.email, u.first_name, u.last_name, u.phone, u.tier, u.created_at,
+            SELECT u.id, u.username, u.email, u.first_name, u.last_name, u.phone, u.tier, u.created_at, u.last_active_at,
                    r.name as role
             FROM users u
             LEFT JOIN user_roles ur ON u.id = ur.user_id
@@ -134,6 +135,7 @@ exports.createUser = async (req, res) => {
         }
 
         await connection.commit();
+        await logAdminAction(req, 'CREATE', 'users', userId, { role: targetRoleName, tier: tier || 'basic' });
         res.status(201).json({ message: 'User created successfully', id: userId });
     } catch (error) {
         await connection.rollback();
@@ -146,7 +148,7 @@ exports.createUser = async (req, res) => {
 // Update an existing user as Admin
 exports.updateUser = async (req, res) => {
     const { id } = req.params;
-    const { email, first_name, last_name, phone, tier, role } = req.body;
+    const { first_name, last_name, phone, tier, role } = req.body;
     
     const connection = await pool.getConnection();
 
@@ -160,8 +162,8 @@ exports.updateUser = async (req, res) => {
         }
 
         const [result] = await connection.query(
-            'UPDATE users SET email = ?, first_name = ?, last_name = ?, phone = ?, tier = ? WHERE id = ?',
-            [email, first_name, last_name, phone || null, tier || 'basic', id]
+            'UPDATE users SET first_name = ?, last_name = ?, phone = ?, tier = ? WHERE id = ?',
+            [first_name, last_name, phone || null, tier || 'basic', id]
         );
 
         if (result.affectedRows === 0) {
@@ -195,6 +197,7 @@ exports.updateUser = async (req, res) => {
         }
 
         await connection.commit();
+        await logAdminAction(req, 'UPDATE', 'users', id, { role, tier });
         res.json({ message: 'User updated successfully' });
     } catch (error) {
         await connection.rollback();
@@ -212,6 +215,7 @@ exports.deleteUser = async (req, res) => {
         if (result.affectedRows === 0) {
             return res.status(404).json({ message: 'User not found' });
         }
+        await logAdminAction(req, 'DELETE', 'users', id);
         res.json({ message: 'User deleted successfully' });
     } catch (error) {
         res.status(500).json({ message: 'Error deleting user', error: error.message });

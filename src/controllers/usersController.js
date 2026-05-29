@@ -1,6 +1,8 @@
 const pool = require('../config/db');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const { logUserAction, logAdminAction } = require('../utils/auditLogger');
+const { issueTokens, getCookieOptions } = require('./authController');
 
 // Get all users
 exports.getAllUsers = async (req, res) => {
@@ -23,6 +25,7 @@ exports.getAllUsers = async (req, res) => {
         }
 
         const [rows] = await pool.query(query, params);
+        res.set('Cache-Control', 'public, max-age=300'); // Cache for 5 minutes
         res.json(rows);
     } catch (error) {
         res.status(500).json({ message: 'Error fetching users', error: error.message });
@@ -106,24 +109,11 @@ exports.createUser = async (req, res) => {
 
         await connection.commit();
 
-        // Generate JWT
-        const payload = {
-            user: {
-                id: userId,
-                username: username,
-                role: targetRoleName
-            }
-        };
+        await logUserAction({ user: { id: userId }, ip: req.ip, headers: req.headers, socket: req.socket }, 'REGISTER', 'users', userId, { role: targetRoleName });
 
-        jwt.sign(
-            payload,
-            process.env.JWT_SECRET,
-            { expiresIn: '7d' },
-            (err, token) => {
-                if (err) throw err;
-                res.status(201).json({ message: 'User created', token });
-            }
-        );
+        // Issue httpOnly cookie tokens — flat payload { userId, role }
+        issueTokens(res, req, userId, targetRoleName);
+        res.status(201).json({ message: 'User created' });
 
     } catch (error) {
         await connection.rollback();
@@ -157,50 +147,57 @@ exports.loginUser = async (req, res) => {
             return res.status(400).json({ message: 'Invalid credentials' });
         }
 
-        // Generate JWT
-        const payload = {
-            user: {
-                id: user.id,
-                username: user.username,
-                role: user.role || 'user'
-            }
-        };
+        // Issue httpOnly cookie tokens — flat payload { userId, role }
+        issueTokens(res, req, user.id, user.role || 'user');
 
-        jwt.sign(
-            payload,
-            process.env.JWT_SECRET,
-            { expiresIn: '7d' },
-            (err, token) => {
-                if (err) throw err;
-                res.json({ token });
-            }
+        await logUserAction(
+            { user: { id: user.id, role: user.role }, ip: req.ip, headers: req.headers, socket: req.socket },
+            'LOGIN', 'users', user.id
         );
+
+        res.json({ message: 'Login successful' });
 
     } catch (error) {
         res.status(500).json({ message: 'Server error during login', error: error.message });
     }
 };
 
-// Update user profile (excluding username)
+// Logout user (now handled by /api/auth/logout — this kept for backwards compat)
+exports.logoutUser = async (req, res) => {
+    try {
+        if (req.user) {
+            await logUserAction(req, 'LOGOUT', 'users', req.user.userId);
+        }
+        const COOKIE_OPTIONS = { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'strict' };
+        res.clearCookie('accessToken', COOKIE_OPTIONS);
+        res.clearCookie('refreshToken', COOKIE_OPTIONS);
+        res.json({ message: 'Logged out successfully' });
+    } catch (error) {
+        res.status(500).json({ message: 'Error during logout', error: error.message });
+    }
+};
+
+// Update user profile (excluding username and email)
 exports.updateUser = async (req, res) => {
     const { id } = req.params;
-    const { email, first_name, last_name, phone } = req.body;
+    const { first_name, last_name, phone } = req.body;
     
     // Ensure the logged-in user is updating their own profile
-    if (req.user.id !== parseInt(id)) {
+    if (req.user.userId !== parseInt(id)) {
         return res.status(403).json({ message: 'Not authorized to update this profile' });
     }
 
     try {
         const [result] = await pool.query(
-            'UPDATE users SET email = ?, first_name = ?, last_name = ?, phone = ? WHERE id = ?',
-            [email, first_name, last_name, phone, id]
+            'UPDATE users SET first_name = ?, last_name = ?, phone = ? WHERE id = ?',
+            [first_name, last_name, phone, id]
         );
 
         if (result.affectedRows === 0) {
             return res.status(404).json({ message: 'User not found' });
         }
 
+        await logUserAction(req, 'UPDATE_PROFILE', 'users', id);
         res.json({ message: 'Profile updated successfully' });
     } catch (error) {
         res.status(500).json({ message: 'Error updating profile', error: error.message });
@@ -212,7 +209,7 @@ exports.uploadPicture = async (req, res) => {
     const { id } = req.params;
     
     // Ensure the logged-in user is updating their own profile picture
-    if (req.user.id !== parseInt(id)) {
+    if (req.user.userId !== parseInt(id)) {
         return res.status(403).json({ message: 'Not authorized to update this profile picture' });
     }
 
@@ -232,32 +229,39 @@ exports.uploadPicture = async (req, res) => {
             return res.status(404).json({ message: 'User not found' });
         }
 
+        await logUserAction(req, 'UPLOAD_PICTURE', 'users', id);
         res.json({ message: 'Profile picture updated successfully', profile_picture_url: fileUrl });
     } catch (error) {
         res.status(500).json({ message: 'Error updating profile picture', error: error.message });
     }
 };
 
-// Upgrade user to Premium tier
+// Upgrade user to a specific tier
 exports.upgradeUser = async (req, res) => {
     const { id } = req.params;
+    const { tier } = req.body; // 'summer_pass' or 'premium'
     
     // Ensure the logged-in user is upgrading their own profile
-    if (req.user.id !== parseInt(id)) {
+    if (req.user.userId !== parseInt(id)) {
         return res.status(403).json({ message: 'Not authorized to upgrade this profile' });
+    }
+
+    if (!tier || !['premium', 'summer_pass'].includes(tier)) {
+        return res.status(400).json({ message: 'Invalid tier specified' });
     }
 
     try {
         const [result] = await pool.query(
             'UPDATE users SET tier = ? WHERE id = ?',
-            ['premium', id]
+            [tier, id]
         );
 
         if (result.affectedRows === 0) {
             return res.status(404).json({ message: 'User not found' });
         }
 
-        res.json({ message: 'Profile upgraded to Premium' });
+        await logUserAction(req, 'UPGRADE_TIER', 'users', id, { tier });
+        res.json({ message: `Profile upgraded to ${tier}` });
     } catch (error) {
         res.status(500).json({ message: 'Error upgrading profile', error: error.message });
     }
@@ -266,7 +270,7 @@ exports.upgradeUser = async (req, res) => {
 // Buy profile enhancement upgrade
 exports.buyUpgrade = async (req, res) => {
     const { id, type } = req.params; // type: 'video', 'link', 'badge'
-    if (req.user.id !== parseInt(id)) return res.status(403).json({ message: 'Not authorized' });
+    if (req.user.userId !== parseInt(id)) return res.status(403).json({ message: 'Not authorized' });
 
     let column = '';
     if (type === 'video') column = 'has_video_upgrade';
@@ -276,6 +280,7 @@ exports.buyUpgrade = async (req, res) => {
 
     try {
         await pool.query(`UPDATE instructor_profiles SET ${column} = TRUE WHERE user_id = ?`, [id]);
+        await logUserAction(req, 'BUY_UPGRADE', 'instructor_profiles', id, { type });
         res.json({ message: `${type} upgrade unlocked` });
     } catch (error) {
         res.status(500).json({ message: 'Error upgrading profile', error: error.message });
@@ -287,7 +292,7 @@ exports.updateInstructorProfile = async (req, res) => {
     const { id } = req.params;
     const { video_url, booking_link, available_today, bio, specialization } = req.body;
     
-    if (req.user.id !== parseInt(id)) return res.status(403).json({ message: 'Not authorized' });
+    if (req.user.userId !== parseInt(id)) return res.status(403).json({ message: 'Not authorized' });
 
     try {
         // Fetch current upgrades
@@ -315,6 +320,7 @@ exports.updateInstructorProfile = async (req, res) => {
         if (updates.length > 0) {
             params.push(id);
             await pool.query(`UPDATE instructor_profiles SET ${updates.join(', ')} WHERE user_id = ?`, params);
+            await logUserAction(req, 'UPDATE_INSTRUCTOR_PROFILE', 'instructor_profiles', id);
         }
 
         res.json({ message: 'Instructor profile updated' });
@@ -348,7 +354,7 @@ exports.getFeaturedInstructor = async (req, res) => {
 // Buy featured spot
 exports.buyFeaturedSpot = async (req, res) => {
     const { id } = req.params;
-    if (req.user.id !== parseInt(id)) return res.status(403).json({ message: 'Not authorized' });
+    if (req.user.userId !== parseInt(id)) return res.status(403).json({ message: 'Not authorized' });
 
     try {
         // Check if there is an active featured instructor
@@ -362,6 +368,7 @@ exports.buyFeaturedSpot = async (req, res) => {
 
         // Set featured_until to 7 days from now
         await pool.query('UPDATE instructor_profiles SET featured_until = DATE_ADD(NOW(), INTERVAL 7 DAY) WHERE user_id = ?', [id]);
+        await logUserAction(req, 'BUY_FEATURED', 'instructor_profiles', id);
         
         res.json({ message: 'You are now the Featured Instructor of the Week!' });
     } catch (error) {

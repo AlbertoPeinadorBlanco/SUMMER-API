@@ -1,4 +1,5 @@
 const pool = require('../config/db');
+const { logAdminAction } = require('../utils/auditLogger');
 
 // Get all platform pricings
 exports.getAllPricings = async (req, res) => {
@@ -28,6 +29,8 @@ exports.updatePricing = async (req, res) => {
         if (result.affectedRows === 0) {
             return res.status(404).json({ message: 'Pricing item not found' });
         }
+
+        await logAdminAction(req, 'UPDATE', 'platform_pricings', null, { key, new_price: price });
 
         res.json({ message: 'Pricing updated successfully' });
     } catch (error) {

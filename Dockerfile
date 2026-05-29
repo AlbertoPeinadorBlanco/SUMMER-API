@@ -1,17 +1,35 @@
-FROM node:20-alpine
+# ─────────────────────────────────────────────
+# Stage 1: Build
+# ─────────────────────────────────────────────
+FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-# Copy package files
 COPY package*.json ./
+RUN npm ci --only=production
 
-# Install only production dependencies
-RUN npm ci --omit=dev
-
-# Copy the rest of the source code
 COPY . .
 
-EXPOSE 3000
+# ─────────────────────────────────────────────
+# Stage 2: Production image
+# ─────────────────────────────────────────────
+FROM node:20-alpine AS runner
 
-# Optional: Ensure nodemon isn't run in production, use standard node.
-CMD ["npm", "start"]
+WORKDIR /app
+
+# Create a non-root user for security
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/src ./src
+COPY --from=builder /app/package.json ./package.json
+
+# Uploads directory (will be mounted as a Docker volume in production)
+RUN mkdir -p uploads/banners uploads/profiles uploads/classes \
+    && chown -R appuser:appgroup uploads
+
+USER appuser
+
+EXPOSE 5000
+
+CMD ["node", "src/index.js"]
