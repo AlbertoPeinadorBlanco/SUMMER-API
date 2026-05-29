@@ -19,6 +19,7 @@ const pricingsRoutes = require('./routes/pricingsRoutes');
 const auditLogsRoutes = require('./routes/auditLogsRoutes');
 const bannersRoutes = require('./routes/bannersRoutes');
 const authRoutes = require('./routes/authRoutes');
+const stripeRoutes = require('./routes/stripeRoutes');
 const sitemapController = require('./controllers/sitemapController');
 const trafficLogger = require('./middleware/trafficLogger');
 
@@ -66,7 +67,13 @@ app.use(cors({
     allowedHeaders: ['Content-Type', 'Authorization'],
     credentials: true // Required for cookies to be sent cross-origin
 }));
+const stripeController = require('./controllers/stripeController');
+
 app.use(cookieParser());
+
+// === STRIPE WEBHOOK MUST BE BEFORE express.json() ===
+app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), stripeController.webhook);
+
 app.use(express.json());
 app.use('/uploads', express.static('uploads'));
 
@@ -82,6 +89,7 @@ app.use('/api/notifications', notificationsRoutes);
 app.use('/api/pricings', pricingsRoutes);
 app.use('/api/logs', auditLogsRoutes);
 app.use('/api/banners', bannersRoutes);
+app.use('/api/stripe', stripeRoutes);
 
 // Base route
 app.get('/', (req, res) => {

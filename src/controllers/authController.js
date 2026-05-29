@@ -44,7 +44,8 @@ exports.getMe = async (req, res) => {
     try {
         const token = req.cookies?.accessToken;
         if (!token) {
-            return res.status(401).json({ message: 'Not authenticated' });
+            // Return 200 to prevent browser console network errors on page load
+            return res.status(200).json({ authenticated: false });
         }
 
         const decoded = jwt.verify(token, process.env.JWT_ACCESS_SECRET, { algorithms: ['HS256'] });
@@ -63,15 +64,16 @@ exports.getMe = async (req, res) => {
         `, [decoded.userId]);
 
         if (rows.length === 0) {
-            return res.status(404).json({ message: 'User not found' });
+            return res.status(200).json({ authenticated: false });
         }
 
-        res.json(rows[0]);
+        res.json({ authenticated: true, ...rows[0] });
     } catch (err) {
+        console.error("getMe error:", err);
         if (err.name === 'TokenExpiredError') {
             return res.status(401).json({ message: 'Token expired', code: 'TOKEN_EXPIRED' });
         }
-        res.status(401).json({ message: 'Not authenticated' });
+        res.status(200).json({ authenticated: false });
     }
 };
 
