@@ -11,7 +11,7 @@ const pool = require('../config/db');
  */
 async function logAdminAction(req, action, entityType, entityId = null, details = null) {
     try {
-        const adminId = req.user ? req.user.id : null;
+        const adminId = req.user ? req.user.userId : null;
         const ipAddress = req.ip || req.headers['x-forwarded-for'] || req.socket.remoteAddress || null;
         const detailsJson = details ? JSON.stringify(details) : null;
         
@@ -35,7 +35,7 @@ async function logAdminAction(req, action, entityType, entityId = null, details 
  */
 async function logUserAction(req, action, entityType, entityId = null, details = null) {
     try {
-        const userId = req.user ? req.user.id : null;
+        const userId = req.user ? req.user.userId : null;
         if (!userId) return; // Don't log if no user context
 
         if (req.user && req.user.role === 'admin') {

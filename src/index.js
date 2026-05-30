@@ -20,9 +20,16 @@ const auditLogsRoutes = require('./routes/auditLogsRoutes');
 const bannersRoutes = require('./routes/bannersRoutes');
 const authRoutes = require('./routes/authRoutes');
 const stripeRoutes = require('./routes/stripeRoutes');
+const weatherRoutes = require('./routes/weatherRoutes');
 const sitemapController = require('./controllers/sitemapController');
 const trafficLogger = require('./middleware/trafficLogger');
 const startSubscriptionReminders = require('./cron/subscriptionReminders');
+const pool = require('./config/db');
+
+// Run migration on startup
+pool.query('ALTER TABLE classes ADD COLUMN sport_type VARCHAR(20) NULL DEFAULT "surf"')
+  .then(() => console.log('Added sport_type to classes'))
+  .catch(e => console.log('sport_type migration:', e.message));
 
 // Start cron jobs
 startSubscriptionReminders();
@@ -94,6 +101,7 @@ app.use('/api/pricings', pricingsRoutes);
 app.use('/api/logs', auditLogsRoutes);
 app.use('/api/banners', bannersRoutes);
 app.use('/api/stripe', stripeRoutes);
+app.use('/api/weather', weatherRoutes);
 
 // Base route
 app.get('/', (req, res) => {

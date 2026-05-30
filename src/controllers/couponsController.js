@@ -1,4 +1,5 @@
 const pool = require('../config/db');
+const { logAdminAction } = require('../utils/auditLogger');
 
 exports.getCoupons = async (req, res) => {
     try {
@@ -26,6 +27,7 @@ exports.createCoupon = async (req, res) => {
             'INSERT INTO coupons (shop_name, discount_text, coupon_code, image_url, link_url, is_active) VALUES (?, ?, ?, ?, ?, ?)',
             [shop_name, discount_text, coupon_code, image_url, link_url, is_active ? 1 : 0]
         );
+        await logAdminAction(req, 'CREATE_COUPON', 'coupons', result.insertId);
         res.status(201).json({ id: result.insertId, shop_name, discount_text, coupon_code, image_url, link_url, is_active });
     } catch (error) {
         res.status(500).json({ message: 'Error creating coupon', error: error.message });
@@ -43,6 +45,7 @@ exports.updateCoupon = async (req, res) => {
         if (result.affectedRows === 0) {
             return res.status(404).json({ message: 'Coupon not found' });
         }
+        await logAdminAction(req, 'UPDATE_COUPON', 'coupons', id);
         res.json({ message: 'Coupon updated successfully' });
     } catch (error) {
         res.status(500).json({ message: 'Error updating coupon', error: error.message });
@@ -56,6 +59,7 @@ exports.deleteCoupon = async (req, res) => {
         if (result.affectedRows === 0) {
             return res.status(404).json({ message: 'Coupon not found' });
         }
+        await logAdminAction(req, 'DELETE_COUPON', 'coupons', id);
         res.json({ message: 'Coupon deleted successfully' });
     } catch (error) {
         res.status(500).json({ message: 'Error deleting coupon', error: error.message });

@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const classesController = require('../controllers/classesController');
 const { classValidator } = require('../middleware/validators');
+const authMiddleware = require('../middleware/authMiddleware');
 const multer = require('multer');
 const path = require('path');
 
@@ -17,10 +18,10 @@ const storage = multer.diskStorage({
 const upload = multer({ storage: storage });
 
 router.get('/', classesController.getAllClasses);
-router.post('/', classValidator, classesController.createClass);
+router.post('/', authMiddleware, classValidator, classesController.createClass);
 router.get('/:id', classesController.getClassById);
-router.put('/:id', classValidator, classesController.updateClass);
-router.delete('/:id', classesController.deleteClass);
-router.post('/:id/picture', upload.single('class_picture'), classesController.uploadPicture);
+router.put('/:id', authMiddleware, classValidator, classesController.updateClass);
+router.delete('/:id', authMiddleware, classesController.deleteClass);
+router.post('/:id/picture', authMiddleware, upload.single('class_picture'), classesController.uploadPicture);
 
 module.exports = router;

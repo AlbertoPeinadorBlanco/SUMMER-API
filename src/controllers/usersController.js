@@ -11,19 +11,24 @@ exports.getAllUsers = async (req, res) => {
     try {
         let query = `
             SELECT u.id, u.username, u.email, u.first_name, u.last_name, u.phone, u.is_active, u.is_verified, u.created_at, u.updated_at, u.profile_picture_url, u.tier,
-                   r.name as role, ip.bio, ip.specialization, ip.rating,
+                   u.tier_expires_at, r.name as role, ip.bio, ip.specialization, ip.rating,
                    ip.has_video_upgrade, ip.has_link_upgrade, ip.has_badge_upgrade, ip.video_url, ip.booking_link, ip.available_today,
                    ip.featured_until
             FROM users u
             LEFT JOIN user_roles ur ON u.id = ur.user_id
             LEFT JOIN roles r ON ur.role_id = r.id
             LEFT JOIN instructor_profiles ip ON u.id = ip.user_id
+            WHERE 1=1
         `;
         const params = [];
 
         if (req.query.role) {
-            query += ` WHERE r.name = ?`;
+            query += ` AND r.name = ?`;
             params.push(req.query.role);
+            
+            if (req.query.role === 'instructor') {
+                query += ` AND u.is_verified = 1 AND u.tier != 'basic' AND (u.tier_expires_at IS NULL OR u.tier_expires_at > NOW())`;
+            }
         }
 
         const [rows] = await pool.query(query, params);
@@ -40,7 +45,7 @@ exports.getUserById = async (req, res) => {
     try {
         const query = `
             SELECT u.id, u.username, u.email, u.first_name, u.last_name, u.phone, u.is_active, u.is_verified, u.created_at, u.updated_at, u.profile_picture_url, u.tier,
-                   r.name as role, ip.bio, ip.specialization, ip.rating,
+                   u.tier_expires_at, r.name as role, ip.bio, ip.specialization, ip.rating,
                    ip.has_video_upgrade, ip.has_link_upgrade, ip.has_badge_upgrade, ip.video_url, ip.booking_link, ip.available_today,
                    ip.featured_until
             FROM users u
@@ -53,7 +58,18 @@ exports.getUserById = async (req, res) => {
         if (rows.length === 0) {
             return res.status(404).json({ message: 'User not found' });
         }
-        res.json(rows[0]);
+        
+        const user = rows[0];
+
+        // Hide unverified or unsubscribed instructor profiles from public view
+        if (user.role === 'instructor') {
+            const isSubscriptionExpired = user.tier_expires_at && new Date(user.tier_expires_at) < new Date();
+            if (!user.is_verified || user.tier === 'basic' || isSubscriptionExpired) {
+                return res.status(403).json({ message: 'Instructor profile is hidden or inactive' });
+            }
+        }
+
+        res.json(user);
     } catch (error) {
         res.status(500).json({ message: 'Error fetching user', error: error.message });
     }
@@ -114,7 +130,7 @@ exports.createUser = async (req, res) => {
 
         await connection.commit();
 
-        await logUserAction({ user: { id: userId }, ip: req.ip, headers: req.headers, socket: req.socket }, 'REGISTER', 'users', userId, { role: targetRoleName });
+        await logUserAction({ user: { userId: userId, role: targetRoleName }, ip: req.ip, headers: req.headers, socket: req.socket }, 'REGISTER', 'users', userId, { role: targetRoleName });
 
         // Send Verification Email (don't await to avoid blocking response, or await to be safe)
         sendVerificationEmail(email, verificationToken).catch(err => {
@@ -161,7 +177,7 @@ exports.loginUser = async (req, res) => {
         issueTokens(res, req, user.id, user.role || 'user');
 
         await logUserAction(
-            { user: { id: user.id, role: user.role }, ip: req.ip, headers: req.headers, socket: req.socket },
+            { user: { userId: user.id, role: user.role }, ip: req.ip, headers: req.headers, socket: req.socket },
             'LOGIN', 'users', user.id
         );
 
@@ -348,6 +364,9 @@ exports.getFeaturedInstructor = async (req, res) => {
             FROM users u
             JOIN instructor_profiles ip ON u.id = ip.user_id
             WHERE ip.featured_until > NOW()
+              AND u.is_verified = 1
+              AND u.tier != 'basic'
+              AND (u.tier_expires_at IS NULL OR u.tier_expires_at > NOW())
             ORDER BY ip.featured_until DESC
             LIMIT 3
         `;

@@ -122,6 +122,20 @@ exports.refresh = async (req, res) => {
 // POST /api/auth/logout — clear both cookies
 exports.logout = async (req, res) => {
     const opts = getCookieOptions(req);
+    
+    // Attempt to log the logout action if a token is present
+    const token = req.cookies?.accessToken;
+    if (token) {
+        try {
+            const decoded = jwt.verify(token, process.env.JWT_ACCESS_SECRET, { algorithms: ['HS256'] });
+            req.user = decoded;
+            const { logUserAction } = require('../utils/auditLogger');
+            await logUserAction(req, 'LOGOUT', 'users', decoded.userId);
+        } catch (err) {
+            // Ignore verification errors during logout
+        }
+    }
+    
     res.clearCookie('accessToken', opts);
     res.clearCookie('refreshToken', opts);
     res.json({ message: 'Logged out successfully' });

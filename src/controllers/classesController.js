@@ -8,7 +8,7 @@ exports.getAllClasses = async (req, res) => {
             SELECT c.id, c.instructor_id, ct.name as class_type, c.title, c.description, 
                    c.price, c.capacity, c.duration_minutes, c.starts_at, c.ends_at, 
                    c.location, c.is_online, c.image_url, c.is_active, c.created_at,
-                   c.title_es, c.description_es, c.difficulty_level,
+                   c.title_es, c.description_es, c.difficulty_level, c.sport_type,
                    (SELECT COUNT(*) FROM bookings b WHERE b.class_id = c.id AND b.status_id != 3) as bookings_count,
                    u.first_name, u.last_name, u.profile_picture_url, u.username as instructor_username,
                    u.email, u.phone, u.tier as instructor_tier, u.is_verified, u.tier_expires_at,
@@ -46,7 +46,7 @@ exports.getClassById = async (req, res) => {
             SELECT c.id, c.instructor_id, ct.name as class_type, c.title, c.description, 
                    c.price, c.capacity, c.duration_minutes, c.starts_at, c.ends_at, 
                    c.location, c.is_online, c.image_url, c.is_active, c.created_at,
-                   c.title_es, c.description_es, c.difficulty_level,
+                   c.title_es, c.description_es, c.difficulty_level, c.sport_type,
                    (SELECT COUNT(*) FROM bookings b WHERE b.class_id = c.id AND b.status_id != 3) as bookings_count,
                    u.first_name, u.last_name, u.profile_picture_url, u.username as instructor_username,
                    u.email, u.phone, u.tier as instructor_tier, u.is_verified, u.tier_expires_at,
@@ -71,15 +71,15 @@ exports.getClassById = async (req, res) => {
 exports.createClass = async (req, res) => {
     const { 
         instructor_id, class_type_id, title, description, title_es, description_es, price, 
-        capacity, duration_minutes, starts_at, ends_at, location, is_online, difficulty_level
+        capacity, duration_minutes, starts_at, ends_at, location, is_online, difficulty_level, sport_type
     } = req.body;
     
     try {
         const [result] = await pool.query(
             `INSERT INTO classes 
-            (instructor_id, class_type_id, title, description, title_es, description_es, price, capacity, duration_minutes, starts_at, ends_at, location, is_online, difficulty_level) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [instructor_id, class_type_id, title, description, title_es || null, description_es || null, price, capacity, duration_minutes, starts_at, ends_at, location, is_online, difficulty_level || 1]
+            (instructor_id, class_type_id, title, description, title_es, description_es, price, capacity, duration_minutes, starts_at, ends_at, location, is_online, difficulty_level, sport_type) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [instructor_id, class_type_id, title, description, title_es || null, description_es || null, price, capacity, duration_minutes, starts_at, ends_at, location, is_online, difficulty_level || 1, sport_type || 'surf']
         );
         await logUserAction(req, 'CREATE_CLASS', 'classes', result.insertId);
         res.status(201).json({ message: 'Class created', id: result.insertId });
@@ -93,7 +93,7 @@ exports.updateClass = async (req, res) => {
     const { id } = req.params;
     const { 
         class_type_id, title, description, title_es, description_es, price, 
-        capacity, duration_minutes, starts_at, ends_at, location, is_online, difficulty_level
+        capacity, duration_minutes, starts_at, ends_at, location, is_online, difficulty_level, sport_type
     } = req.body;
     
     try {
@@ -101,9 +101,9 @@ exports.updateClass = async (req, res) => {
             `UPDATE classes 
              SET class_type_id = ?, title = ?, description = ?, title_es = ?, description_es = ?, price = ?, 
                  capacity = ?, duration_minutes = ?, starts_at = ?, ends_at = ?, 
-                 location = ?, is_online = ?, difficulty_level = ?
+                 location = ?, is_online = ?, difficulty_level = ?, sport_type = ?
              WHERE id = ?`,
-            [class_type_id, title, description, title_es || null, description_es || null, price, capacity, duration_minutes, starts_at, ends_at, location, is_online, difficulty_level || 1, id]
+            [class_type_id, title, description, title_es || null, description_es || null, price, capacity, duration_minutes, starts_at, ends_at, location, is_online, difficulty_level || 1, sport_type || 'surf', id]
         );
 
         if (result.affectedRows === 0) {
