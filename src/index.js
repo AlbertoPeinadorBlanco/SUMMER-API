@@ -22,6 +22,10 @@ const authRoutes = require('./routes/authRoutes');
 const stripeRoutes = require('./routes/stripeRoutes');
 const sitemapController = require('./controllers/sitemapController');
 const trafficLogger = require('./middleware/trafficLogger');
+const startSubscriptionReminders = require('./cron/subscriptionReminders');
+
+// Start cron jobs
+startSubscriptionReminders();
 
 const app = express();
 const PORT = process.env.PORT || 5000;

@@ -11,4 +11,10 @@ router.post('/refresh', authController.refresh);
 // POST /api/auth/logout — clears both cookies server-side
 router.post('/logout', authController.logout);
 
+// POST /api/auth/verify-email
+router.post('/verify-email', authController.verifyEmail);
+
+// POST /api/auth/resend-verification
+router.post('/resend-verification', authController.resendVerification);
+
 module.exports = router;

@@ -1,5 +1,7 @@
 const jwt = require('jsonwebtoken');
 const pool = require('../config/db');
+const crypto = require('crypto');
+const { sendVerificationEmail } = require('../utils/mailer');
 
 // Build cookie options per-request so `secure` correctly reflects the protocol
 // After app.set('trust proxy', 1), Express reads X-Forwarded-Proto from Nginx,
@@ -52,7 +54,7 @@ exports.getMe = async (req, res) => {
 
         const [rows] = await pool.query(`
             SELECT u.id, u.username, u.email, u.first_name, u.last_name, u.phone,
-                   u.profile_picture_url, u.tier, u.is_active,
+                   u.profile_picture_url, u.tier, u.is_active, u.is_verified,
                    r.name as role,
                    ip.has_video_upgrade, ip.has_link_upgrade, ip.has_badge_upgrade,
                    ip.video_url, ip.booking_link, ip.available_today
@@ -127,3 +129,55 @@ exports.logout = async (req, res) => {
 
 module.exports.issueTokens = issueTokens;
 module.exports.getCookieOptions = getCookieOptions;
+
+// POST /api/auth/verify-email
+exports.verifyEmail = async (req, res) => {
+    const { token } = req.body;
+    if (!token) {
+        return res.status(400).json({ message: 'Token is required' });
+    }
+
+    try {
+        const [rows] = await pool.query('SELECT id FROM users WHERE verification_token = ?', [token]);
+        if (rows.length === 0) {
+            return res.status(400).json({ message: 'Invalid or expired verification token.' });
+        }
+
+        const userId = rows[0].id;
+        await pool.query('UPDATE users SET is_verified = TRUE, verification_token = NULL WHERE id = ?', [userId]);
+
+        res.json({ message: 'Email verified successfully!' });
+    } catch (err) {
+        console.error('verifyEmail error:', err);
+        res.status(500).json({ message: 'Failed to verify email.' });
+    }
+};
+
+// POST /api/auth/resend-verification
+exports.resendVerification = async (req, res) => {
+    try {
+        const token = req.cookies?.accessToken;
+        if (!token) return res.status(401).json({ message: 'Unauthorized' });
+
+        const decoded = jwt.verify(token, process.env.JWT_ACCESS_SECRET, { algorithms: ['HS256'] });
+        const userId = decoded.userId;
+
+        const [rows] = await pool.query('SELECT email, is_verified FROM users WHERE id = ?', [userId]);
+        if (rows.length === 0) return res.status(404).json({ message: 'User not found' });
+
+        const user = rows[0];
+        if (user.is_verified) {
+            return res.status(400).json({ message: 'Email is already verified.' });
+        }
+
+        const verificationToken = crypto.randomBytes(32).toString('hex');
+        await pool.query('UPDATE users SET verification_token = ? WHERE id = ?', [verificationToken, userId]);
+
+        await sendVerificationEmail(user.email, verificationToken);
+
+        res.json({ message: 'Verification email sent!' });
+    } catch (err) {
+        console.error('resendVerification error:', err);
+        res.status(500).json({ message: 'Failed to resend verification email.' });
+    }
+};

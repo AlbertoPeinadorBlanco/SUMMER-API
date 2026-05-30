@@ -4,7 +4,7 @@ const { logUserAction } = require('../utils/auditLogger');
 
 exports.createCheckoutSession = async (req, res) => {
     try {
-        const { item_key } = req.body;
+        const { item_key, class_id } = req.body;
         const userId = req.user.userId; // From authMiddleware
 
         // 1. Fetch pricing from database
@@ -39,7 +39,8 @@ exports.createCheckoutSession = async (req, res) => {
             cancel_url: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/profile?canceled=true`,
             metadata: {
                 userId: userId.toString(),
-                itemKey: item_key
+                itemKey: item_key,
+                ...(class_id && { classId: class_id.toString() })
             }
         };
 
@@ -83,11 +84,11 @@ exports.webhook = async (req, res) => {
         try {
             // Apply the upgrade logic based on itemKey
             if (itemKey === 'premium_subscription') {
-                await pool.query('UPDATE users SET tier = ? WHERE id = ?', ['premium', userId]);
+                await pool.query('UPDATE users SET tier = ?, tier_expires_at = DATE_ADD(NOW(), INTERVAL 30 DAY) WHERE id = ?', ['premium', userId]);
                 await logUserAction({ user: { id: userId }, ip: 'stripe', headers: {}, socket: { remoteAddress: 'stripe' } }, 'UPGRADE_TIER', 'users', userId, { tier: 'premium' });
             } 
             else if (itemKey === 'summer_pass') {
-                await pool.query('UPDATE users SET tier = ? WHERE id = ?', ['summer_pass', userId]);
+                await pool.query('UPDATE users SET tier = ?, tier_expires_at = STR_TO_DATE(CONCAT(YEAR(NOW()), \'-09-30 23:59:59\'), \'%Y-%m-%d %H:%i:%s\') WHERE id = ?', ['summer_pass', userId]);
                 await logUserAction({ user: { id: userId }, ip: 'stripe', headers: {}, socket: { remoteAddress: 'stripe' } }, 'UPGRADE_TIER', 'users', userId, { tier: 'summer_pass' });
             }
             else if (itemKey === 'video_upgrade') {
@@ -106,6 +107,13 @@ exports.webhook = async (req, res) => {
                 // For featured spot, we set it 7 days from now
                 await pool.query('UPDATE instructor_profiles SET featured_until = DATE_ADD(NOW(), INTERVAL 7 DAY) WHERE user_id = ?', [userId]);
                 await logUserAction({ user: { id: userId }, ip: 'stripe', headers: {}, socket: { remoteAddress: 'stripe' } }, 'BUY_FEATURED', 'instructor_profiles', userId);
+            }
+            else if (itemKey === 'bump_advert') {
+                const classId = session.metadata.classId;
+                if (classId) {
+                    await pool.query('UPDATE classes SET bumped_at = NOW() WHERE id = ?', [classId]);
+                    await logUserAction({ user: { id: userId }, ip: 'stripe', headers: {}, socket: { remoteAddress: 'stripe' } }, 'BUMP_ADVERT', 'classes', classId);
+                }
             }
         } catch (dbError) {
             console.error('Database Error fulfilling purchase:', dbError);

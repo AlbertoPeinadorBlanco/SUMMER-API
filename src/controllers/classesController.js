@@ -11,8 +11,8 @@ exports.getAllClasses = async (req, res) => {
                    c.title_es, c.description_es, c.difficulty_level,
                    (SELECT COUNT(*) FROM bookings b WHERE b.class_id = c.id AND b.status_id != 3) as bookings_count,
                    u.first_name, u.last_name, u.profile_picture_url, u.username as instructor_username,
-                   u.email, u.phone, u.tier as instructor_tier,
-                   ip.video_url, ip.booking_link, ip.available_today
+                   u.email, u.phone, u.tier as instructor_tier, u.is_verified, u.tier_expires_at,
+                   ip.video_url, ip.booking_link, ip.available_today, ip.featured_until, c.bumped_at
             FROM classes c
             JOIN class_types ct ON c.class_type_id = ct.id
             JOIN users u ON c.instructor_id = u.id
@@ -23,9 +23,12 @@ exports.getAllClasses = async (req, res) => {
         if (req.query.instructor_id) {
             query += ` WHERE c.instructor_id = ?`;
             params.push(req.query.instructor_id);
+        } else {
+            // General marketplace listing: filter unverified, basic, and expired tiers
+            query += ` WHERE u.is_verified = 1 AND u.tier != 'basic' AND (u.tier_expires_at IS NULL OR u.tier_expires_at > NOW())`;
         }
 
-        query += ` ORDER BY CASE WHEN u.tier = 'premium' THEN 1 ELSE 2 END ASC, c.created_at DESC`;
+        query += ` ORDER BY CASE WHEN c.bumped_at IS NOT NULL AND c.bumped_at > DATE_SUB(NOW(), INTERVAL 24 HOUR) THEN c.bumped_at ELSE '2000-01-01' END DESC, CASE WHEN u.tier = 'premium' THEN 1 ELSE 2 END ASC, c.created_at DESC`;
 
         const [rows] = await pool.query(query, params);
         res.set('Cache-Control', 'public, max-age=300'); // Cache for 5 minutes
@@ -46,8 +49,8 @@ exports.getClassById = async (req, res) => {
                    c.title_es, c.description_es, c.difficulty_level,
                    (SELECT COUNT(*) FROM bookings b WHERE b.class_id = c.id AND b.status_id != 3) as bookings_count,
                    u.first_name, u.last_name, u.profile_picture_url, u.username as instructor_username,
-                   u.email, u.phone, u.tier as instructor_tier,
-                   ip.video_url, ip.booking_link, ip.available_today
+                   u.email, u.phone, u.tier as instructor_tier, u.is_verified, u.tier_expires_at,
+                   ip.video_url, ip.booking_link, ip.available_today, ip.featured_until, c.bumped_at
             FROM classes c
             JOIN class_types ct ON c.class_type_id = ct.id
             JOIN users u ON c.instructor_id = u.id

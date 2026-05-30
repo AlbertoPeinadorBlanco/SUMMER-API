@@ -3,12 +3,14 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { logUserAction, logAdminAction } = require('../utils/auditLogger');
 const { issueTokens, getCookieOptions } = require('./authController');
+const crypto = require('crypto');
+const { sendVerificationEmail } = require('../utils/mailer');
 
 // Get all users
 exports.getAllUsers = async (req, res) => {
     try {
         let query = `
-            SELECT u.id, u.username, u.email, u.first_name, u.last_name, u.phone, u.is_active, u.created_at, u.updated_at, u.profile_picture_url, u.tier,
+            SELECT u.id, u.username, u.email, u.first_name, u.last_name, u.phone, u.is_active, u.is_verified, u.created_at, u.updated_at, u.profile_picture_url, u.tier,
                    r.name as role, ip.bio, ip.specialization, ip.rating,
                    ip.has_video_upgrade, ip.has_link_upgrade, ip.has_badge_upgrade, ip.video_url, ip.booking_link, ip.available_today,
                    ip.featured_until
@@ -37,7 +39,7 @@ exports.getUserById = async (req, res) => {
     const { id } = req.params;
     try {
         const query = `
-            SELECT u.id, u.username, u.email, u.first_name, u.last_name, u.phone, u.is_active, u.created_at, u.updated_at, u.profile_picture_url, u.tier,
+            SELECT u.id, u.username, u.email, u.first_name, u.last_name, u.phone, u.is_active, u.is_verified, u.created_at, u.updated_at, u.profile_picture_url, u.tier,
                    r.name as role, ip.bio, ip.specialization, ip.rating,
                    ip.has_video_upgrade, ip.has_link_upgrade, ip.has_badge_upgrade, ip.video_url, ip.booking_link, ip.available_today,
                    ip.featured_until
@@ -81,9 +83,12 @@ exports.createUser = async (req, res) => {
         const salt = await bcrypt.genSalt(10);
         const password_hash = await bcrypt.hash(password, salt);
 
+        // Generate Verification Token
+        const verificationToken = crypto.randomBytes(32).toString('hex');
+
         const [result] = await connection.query(
-            'INSERT INTO users (username, email, password_hash, first_name, last_name, phone) VALUES (?, ?, ?, ?, ?, ?)',
-            [username, email, password_hash, first_name, last_name, phone]
+            'INSERT INTO users (username, email, password_hash, first_name, last_name, phone, verification_token) VALUES (?, ?, ?, ?, ?, ?, ?)',
+            [username, email, password_hash, first_name, last_name, phone, verificationToken]
         );
 
         const userId = result.insertId;
@@ -110,6 +115,11 @@ exports.createUser = async (req, res) => {
         await connection.commit();
 
         await logUserAction({ user: { id: userId }, ip: req.ip, headers: req.headers, socket: req.socket }, 'REGISTER', 'users', userId, { role: targetRoleName });
+
+        // Send Verification Email (don't await to avoid blocking response, or await to be safe)
+        sendVerificationEmail(email, verificationToken).catch(err => {
+            console.error('Failed to send verification email during registration:', err);
+        });
 
         // Issue httpOnly cookie tokens — flat payload { userId, role }
         issueTokens(res, req, userId, targetRoleName);
@@ -329,7 +339,7 @@ exports.updateInstructorProfile = async (req, res) => {
     }
 };
 
-// Get featured instructor of the week
+// Get featured instructors of the week (up to 3)
 exports.getFeaturedInstructor = async (req, res) => {
     try {
         const query = `
@@ -339,15 +349,12 @@ exports.getFeaturedInstructor = async (req, res) => {
             JOIN instructor_profiles ip ON u.id = ip.user_id
             WHERE ip.featured_until > NOW()
             ORDER BY ip.featured_until DESC
-            LIMIT 1
+            LIMIT 3
         `;
         const [rows] = await pool.query(query);
-        if (rows.length === 0) {
-            return res.json({ featured: null });
-        }
-        res.json({ featured: rows[0] });
+        res.json({ featured: rows });
     } catch (error) {
-        res.status(500).json({ message: 'Error fetching featured instructor', error: error.message });
+        res.status(500).json({ message: 'Error fetching featured instructors', error: error.message });
     }
 };
 
@@ -357,11 +364,11 @@ exports.buyFeaturedSpot = async (req, res) => {
     if (req.user.userId !== parseInt(id)) return res.status(403).json({ message: 'Not authorized' });
 
     try {
-        // Check if there is an active featured instructor
-        const [rows] = await pool.query('SELECT user_id, featured_until FROM instructor_profiles WHERE featured_until > NOW() LIMIT 1');
-        if (rows.length > 0) {
+        // Check if there are already 3 active featured instructors
+        const [rows] = await pool.query('SELECT user_id, featured_until FROM instructor_profiles WHERE featured_until > NOW() LIMIT 3');
+        if (rows.length >= 3) {
             return res.status(400).json({ 
-                message: 'Featured spot is already taken.',
+                message: 'All featured spots are already taken.',
                 featured_until: rows[0].featured_until 
             });
         }
