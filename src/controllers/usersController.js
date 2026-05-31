@@ -13,7 +13,7 @@ exports.getAllUsers = async (req, res) => {
             SELECT u.id, u.username, u.email, u.first_name, u.last_name, u.phone, u.is_active, u.is_verified, u.created_at, u.updated_at, u.profile_picture_url, u.tier,
                    u.tier_expires_at, r.name as role, ip.bio, ip.specialization, ip.rating,
                    ip.has_video_upgrade, ip.has_link_upgrade, ip.has_badge_upgrade, ip.video_url, ip.booking_link, ip.available_today,
-                   ip.featured_until
+                   ip.featured_until, ip.allow_communications
             FROM users u
             LEFT JOIN user_roles ur ON u.id = ur.user_id
             LEFT JOIN roles r ON ur.role_id = r.id
@@ -47,7 +47,7 @@ exports.getUserById = async (req, res) => {
             SELECT u.id, u.username, u.email, u.first_name, u.last_name, u.phone, u.is_active, u.is_verified, u.created_at, u.updated_at, u.profile_picture_url, u.tier,
                    u.tier_expires_at, r.name as role, ip.bio, ip.specialization, ip.rating,
                    ip.has_video_upgrade, ip.has_link_upgrade, ip.has_badge_upgrade, ip.video_url, ip.booking_link, ip.available_today,
-                   ip.featured_until
+                   ip.featured_until, ip.allow_communications
             FROM users u
             LEFT JOIN user_roles ur ON u.id = ur.user_id
             LEFT JOIN roles r ON ur.role_id = r.id
@@ -316,7 +316,7 @@ exports.buyUpgrade = async (req, res) => {
 // Update instructor profile details
 exports.updateInstructorProfile = async (req, res) => {
     const { id } = req.params;
-    const { video_url, booking_link, available_today, bio, specialization } = req.body;
+    const { bio, specialization, video_url, booking_link, available_today, allow_communications } = req.body;
     
     if (req.user.userId !== parseInt(id)) return res.status(403).json({ message: 'Not authorized' });
 
@@ -332,6 +332,7 @@ exports.updateInstructorProfile = async (req, res) => {
         
         if (bio !== undefined) { updates.push('bio = ?'); params.push(bio); }
         if (specialization !== undefined) { updates.push('specialization = ?'); params.push(specialization); }
+        if (allow_communications !== undefined) { updates.push('allow_communications = ?'); params.push(allow_communications ? 1 : 0); }
 
         if (video_url !== undefined && profile.has_video_upgrade) {
             updates.push('video_url = ?'); params.push(video_url);
@@ -360,7 +361,7 @@ exports.getFeaturedInstructor = async (req, res) => {
     try {
         const query = `
             SELECT u.id, u.username, u.first_name, u.last_name, u.profile_picture_url,
-                   ip.bio, ip.specialization, ip.featured_until
+                   ip.bio, ip.specialization, ip.featured_until, ip.allow_communications
             FROM users u
             JOIN instructor_profiles ip ON u.id = ip.user_id
             WHERE ip.featured_until > NOW()
@@ -398,6 +399,43 @@ exports.buyFeaturedSpot = async (req, res) => {
         
         res.json({ message: 'You are now the Featured Instructor of the Week!' });
     } catch (error) {
-        res.status(500).json({ message: 'Error purchasing featured spot', error: error.message });
+        res.status(500).json({ message: 'Error checking active feature status', error: error.message });
+    }
+};
+
+exports.contactInstructor = async (req, res) => {
+    const { id } = req.params;
+    const { contactName, contactEmail, contactMessage } = req.body;
+
+    if (!contactName || !contactEmail || !contactMessage) {
+        return res.status(400).json({ message: 'Missing required fields' });
+    }
+
+    try {
+        const query = `
+            SELECT u.email, u.first_name, ip.allow_communications
+            FROM users u
+            LEFT JOIN instructor_profiles ip ON u.id = ip.user_id
+            WHERE u.id = ?
+        `;
+        const [rows] = await pool.query(query, [id]);
+        
+        if (rows.length === 0) {
+            return res.status(404).json({ message: 'Instructor not found' });
+        }
+        
+        const instructor = rows[0];
+        
+        if (!instructor.allow_communications) {
+            return res.status(403).json({ message: 'This instructor does not accept direct messages.' });
+        }
+
+        const { sendDirectMessageEmail } = require('../utils/mailer');
+        await sendDirectMessageEmail(instructor.email, instructor.first_name, contactName, contactEmail, contactMessage);
+
+        res.json({ message: 'Message sent successfully' });
+    } catch (error) {
+        console.error('Error sending message:', error);
+        res.status(500).json({ message: 'Error sending message', error: error.message });
     }
 };

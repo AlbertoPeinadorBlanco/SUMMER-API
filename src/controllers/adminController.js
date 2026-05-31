@@ -7,6 +7,7 @@ exports.getAllUsers = async (req, res) => {
     try {
         const query = `
             SELECT u.id, u.username, u.email, u.first_name, u.last_name, u.phone, u.tier, u.created_at, u.last_active_at,
+                   u.is_verified,
                    r.name as role
             FROM users u
             LEFT JOIN user_roles ur ON u.id = ur.user_id
@@ -47,8 +48,9 @@ exports.getUserDetails = async (req, res) => {
         // Fetch core user & profile info
         const userQuery = `
             SELECT u.id, u.username, u.email, u.first_name, u.last_name, u.phone, u.tier, u.created_at,
+                   u.is_verified, u.tier_expires_at,
                    r.name as role, ip.bio, ip.specialization, ip.rating, ip.has_video_upgrade, 
-                   ip.has_link_upgrade, ip.has_badge_upgrade, ip.video_url, ip.booking_link, ip.available_today
+                   ip.has_link_upgrade, ip.has_badge_upgrade, ip.video_url, ip.booking_link, ip.available_today, ip.featured_until
             FROM users u
             LEFT JOIN user_roles ur ON u.id = ur.user_id
             LEFT JOIN roles r ON ur.role_id = r.id

@@ -14,6 +14,14 @@ exports.createCheckoutSession = async (req, res) => {
         }
         const pricing = rows[0];
 
+        // 1.5. If purchasing featured spot, ensure limit of 3 is not exceeded
+        if (item_key === 'featured_instructor') {
+            const [featured] = await pool.query('SELECT user_id FROM instructor_profiles WHERE featured_until > NOW() LIMIT 3');
+            if (featured.length >= 3) {
+                return res.status(400).json({ message: 'All featured spots are currently taken.' });
+            }
+        }
+
         // 2. Determine Stripe mode and build line items
         // In a real app, you might have pre-created Stripe Product/Price IDs.
         // Here, we use ad-hoc inline prices using `price_data`.

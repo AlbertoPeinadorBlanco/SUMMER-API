@@ -48,5 +48,6 @@ router.post('/:id/upgrade', auth, usersController.upgradeUser);
 router.post('/:id/upgrades/:type', auth, usersController.buyUpgrade);
 router.post('/:id/feature', auth, usersController.buyFeaturedSpot);
 router.put('/:id/instructor-profile', auth, usersController.updateInstructorProfile);
+router.post('/:id/contact', usersController.contactInstructor);
 
 module.exports = router;

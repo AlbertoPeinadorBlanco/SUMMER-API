@@ -66,6 +66,38 @@ async function sendVerificationEmail(toEmail, token) {
     return info;
 }
 
+async function sendDirectMessageEmail(toEmail, instructorName, fromName, fromEmail, message) {
+    if (!transporter) await initTransporter();
+
+    const mailOptions = {
+        from: '"Summer Marketplace" <noreply@summer.local>',
+        replyTo: fromEmail,
+        to: toEmail,
+        subject: `New Message from ${fromName} via Summer`,
+        html: `
+            <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #eee; padding: 20px; border-radius: 8px;">
+                <h2 style="color: #1a4b6b;">Hi ${instructorName},</h2>
+                <p>You have received a new direct message from a user on the Summer Marketplace.</p>
+                <div style="background-color: #f9f9f9; padding: 15px; border-left: 4px solid #E26D3F; margin: 20px 0; white-space: pre-wrap;">
+                    <strong>From:</strong> ${fromName} (<a href="mailto:${fromEmail}">${fromEmail}</a>)<br><br>
+                    ${message.replace(/\n/g, '<br>')}
+                </div>
+                <p style="color: #666; font-size: 0.9em;">You can reply directly to this email to respond to ${fromName}.</p>
+            </div>
+        `
+    };
+
+    const info = await transporter.sendMail(mailOptions);
+    console.log('[MAILER] Direct message email sent: %s', info.messageId);
+    
+    if (!process.env.SMTP_HOST) {
+        console.log('[MAILER] Preview URL: %s', nodemailer.getTestMessageUrl(info));
+    }
+
+    return info;
+}
+
 module.exports = {
-    sendVerificationEmail
+    sendVerificationEmail,
+    sendDirectMessageEmail
 };

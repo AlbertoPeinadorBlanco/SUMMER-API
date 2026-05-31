@@ -28,7 +28,7 @@ exports.getLiveConditions = async (req, res) => {
             };
         }
 
-        res.set('Cache-Control', 'public, max-age=300'); // Cache for 5 minutes
+        res.set('Cache-Control', 'no-store'); // Do not cache, fetch fresh data on page load
         res.json({
             weather: weatherData,
             marine: marineData

@@ -43,8 +43,8 @@ const updateProfileValidator = [
 
 // Create/Update Class Validation
 const classValidator = [
-    body('title').trim().isLength({ min: 5, max: 100 }).withMessage('Title must be between 5 and 100 characters'),
-    body('description').trim().isLength({ min: 10 }).withMessage('Description must be at least 10 characters long'),
+    body('title').trim().isLength({ min: 3, max: 100 }).withMessage('Title must be between 3 and 100 characters'),
+    body('description').trim().isLength({ min: 5 }).withMessage('Description must be at least 5 characters long'),
     body('price').isFloat({ min: 0 }).withMessage('Price must be a positive number'),
     body('capacity').isInt({ min: 1 }).withMessage('Capacity must be at least 1'),
     body('duration_minutes').isInt({ min: 10 }).withMessage('Duration must be at least 10 minutes'),
