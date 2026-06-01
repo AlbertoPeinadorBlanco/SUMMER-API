@@ -1,5 +1,6 @@
 const pool = require('../config/db');
 const { logAdminAction } = require('../utils/auditLogger');
+const { sendSystemNotificationEmail } = require('../utils/mailer');
 
 // ---- User Endpoints ----
 
@@ -8,8 +9,9 @@ exports.getUserNotifications = async (req, res) => {
     try {
         const [rows] = await pool.query(
             'SELECT * FROM notifications WHERE user_id = ? ORDER BY created_at DESC',
-            [req.user.id]
+            [req.user.userId]
         );
+        console.log('getUserNotifications for user', req.user.userId, 'returned', rows.length, 'rows');
         res.json(rows);
     } catch (error) {
         res.status(500).json({ message: 'Error fetching notifications', error: error.message });
@@ -22,7 +24,7 @@ exports.markAsRead = async (req, res) => {
     try {
         const [result] = await pool.query(
             'UPDATE notifications SET is_read = TRUE WHERE id = ? AND user_id = ?',
-            [id, req.user.id]
+            [id, req.user.userId]
         );
         if (result.affectedRows === 0) {
             return res.status(404).json({ message: 'Notification not found or access denied' });
@@ -59,6 +61,14 @@ exports.createNotification = async (req, res) => {
             [user_id, type || 'admin_message', message]
         );
         const newId = result.insertId;
+
+        // Fetch user details to send email
+        const [userRows] = await pool.query('SELECT email, first_name FROM users WHERE id = ?', [user_id]);
+        if (userRows.length > 0) {
+            const { email, first_name } = userRows[0];
+            sendSystemNotificationEmail(email, first_name, type || 'admin_message', message).catch(err => console.error('Failed to send admin notification email:', err));
+        }
+
         await logAdminAction(req, 'CREATE', 'notifications', newId, { user_id, type });
         res.status(201).json({ message: 'Notification created successfully', id: newId });
     } catch (error) {

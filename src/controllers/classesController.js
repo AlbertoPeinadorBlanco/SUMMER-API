@@ -31,7 +31,11 @@ exports.getAllClasses = async (req, res) => {
         query += ` ORDER BY CASE WHEN c.bumped_at IS NOT NULL AND c.bumped_at > DATE_SUB(NOW(), INTERVAL 24 HOUR) THEN c.bumped_at ELSE '2000-01-01' END DESC, CASE WHEN u.tier = 'premium' THEN 1 ELSE 2 END ASC, c.created_at DESC`;
 
         const [rows] = await pool.query(query, params);
-        res.set('Cache-Control', 'public, max-age=300'); // Cache for 5 minutes
+        if (!req.query.instructor_id) {
+            res.set('Cache-Control', 'public, max-age=300'); // Cache for 5 minutes only for general marketplace
+        } else {
+            res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate'); // Do not cache for instructor dashboard
+        }
         res.json(rows);
     } catch (error) {
         res.status(500).json({ message: 'Error fetching classes', error: error.message });

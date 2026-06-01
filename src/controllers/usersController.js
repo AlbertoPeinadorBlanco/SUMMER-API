@@ -4,7 +4,7 @@ const jwt = require('jsonwebtoken');
 const { logUserAction, logAdminAction } = require('../utils/auditLogger');
 const { issueTokens, getCookieOptions } = require('./authController');
 const crypto = require('crypto');
-const { sendVerificationEmail } = require('../utils/mailer');
+const { sendVerificationEmail, sendPasswordResetEmail } = require('../utils/mailer');
 
 // Get all users
 exports.getAllUsers = async (req, res) => {
@@ -438,4 +438,162 @@ exports.contactInstructor = async (req, res) => {
         console.error('Error sending message:', error);
         res.status(500).json({ message: 'Error sending message', error: error.message });
     }
+};
+
+// Self-delete user profile
+exports.deleteSelf = async (req, res) => {
+    const id = req.user.userId;
+    const connection = await pool.getConnection();
+    
+    try {
+        await connection.beginTransaction();
+
+        // Find all active bookings made by the user to notify the instructors
+        const [activeBookings] = await connection.query(`
+            SELECT b.id, c.title, c.instructor_id 
+            FROM bookings b 
+            JOIN classes c ON b.class_id = c.id 
+            WHERE b.user_id = ? AND b.status_id IN (1, 2)
+        `, [id]);
+
+        // Insert notification for each instructor
+        for (const booking of activeBookings) {
+            await connection.query(
+                'INSERT INTO notifications (user_id, type, message) VALUES (?, ?, ?)',
+                [booking.instructor_id, 'booking_cancelled', `A student has deleted their account. Their booking for class '${booking.title}' has been cancelled.`]
+            );
+        }
+
+        // Cascade deletes to prevent foreign key constraint errors
+        await connection.query('DELETE FROM booking_payments WHERE booking_id IN (SELECT id FROM bookings WHERE user_id = ?)', [id]);
+        await connection.query('DELETE FROM booking_payments WHERE booking_id IN (SELECT id FROM bookings WHERE class_id IN (SELECT id FROM classes WHERE instructor_id = ?))', [id]);
+        await connection.query('DELETE FROM bookings WHERE user_id = ?', [id]);
+        await connection.query('DELETE FROM bookings WHERE class_id IN (SELECT id FROM classes WHERE instructor_id = ?)', [id]);
+        await connection.query('DELETE FROM classes WHERE instructor_id = ?', [id]);
+        await connection.query('DELETE FROM instructor_profiles WHERE user_id = ?', [id]);
+        await connection.query('DELETE FROM notifications WHERE user_id = ?', [id]);
+        await connection.query('DELETE FROM user_roles WHERE user_id = ?', [id]);
+
+        const [result] = await connection.query('DELETE FROM users WHERE id = ?', [id]);
+        if (result.affectedRows === 0) {
+            await connection.rollback();
+            return res.status(404).json({ message: 'User not found' });
+        }
+
+        await connection.commit();
+        await logUserAction(req, 'DELETE_SELF', 'users', id);
+
+        // Clear cookies
+        const COOKIE_OPTIONS = { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'strict' };
+        res.clearCookie('accessToken', COOKIE_OPTIONS);
+        res.clearCookie('refreshToken', COOKIE_OPTIONS);
+
+        res.json({ message: 'Account deleted successfully' });
+    } catch (error) {
+        await connection.rollback();
+        res.status(500).json({ message: 'Error deleting account', error: error.message });
+    } finally {
+        connection.release();
+    }
+};
+
+exports.updatePassword = async (req, res) => {
+	const { currentPassword, newPassword } = req.body;
+	const userId = req.user.id;
+
+	if (!currentPassword || !newPassword || newPassword.length < 9) {
+		return res.status(400).json({ message: 'Invalid passwords. New password must be at least 9 characters long.' });
+	}
+
+	try {
+		const [rows] = await pool.query('SELECT password_hash FROM users WHERE id = ?', [userId]);
+		if (rows.length === 0) return res.status(404).json({ message: 'User not found' });
+
+		const isMatch = await bcrypt.compare(currentPassword, rows[0].password_hash);
+		if (!isMatch) {
+			return res.status(400).json({ message: 'Incorrect current password' });
+		}
+
+		const salt = await bcrypt.genSalt(10);
+		const password_hash = await bcrypt.hash(newPassword, salt);
+
+		await pool.query('UPDATE users SET password_hash = ? WHERE id = ?', [password_hash, userId]);
+		await logUserAction(req, 'UPDATE_PASSWORD', 'users', userId);
+
+		res.json({ message: 'Password updated successfully' });
+	} catch (error) {
+		res.status(500).json({ message: 'Error updating password', error: error.message });
+	}
+};
+
+exports.forgotPassword = async (req, res) => {
+	const { email } = req.body;
+    const { sendPasswordResetEmail } = require('../utils/mailer');
+
+	if (!email) {
+		return res.status(400).json({ message: 'Email is required' });
+	}
+
+	try {
+		const [users] = await pool.query('SELECT id, email FROM users WHERE email = ?', [email]);
+		if (users.length === 0) {
+			// Do not reveal if the user exists or not for security
+			return res.json({ message: 'If that email exists, a password reset link has been sent.' });
+		}
+
+		const user = users[0];
+		const resetToken = crypto.randomBytes(32).toString('hex');
+		const hashedToken = crypto.createHash('sha256').update(resetToken).digest('hex');
+		
+		// Set expiration to 1 hour from now
+		const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
+
+		await pool.query(
+			'UPDATE users SET reset_token = ?, reset_token_expires = ? WHERE id = ?', 
+			[hashedToken, expiresAt, user.id]
+		);
+
+		await sendPasswordResetEmail(user.email, resetToken);
+
+		res.json({ message: 'If that email exists, a password reset link has been sent.' });
+	} catch (error) {
+		res.status(500).json({ message: 'Error processing password reset request', error: error.message });
+	}
+};
+
+exports.resetPassword = async (req, res) => {
+	const { token, newPassword } = req.body;
+
+	if (!token || !newPassword || newPassword.length < 9) {
+		return res.status(400).json({ message: 'Invalid request. Password must be at least 9 characters long.' });
+	}
+
+	try {
+		const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
+
+		const [users] = await pool.query(
+			'SELECT id FROM users WHERE reset_token = ? AND reset_token_expires > NOW()',
+			[hashedToken]
+		);
+
+		if (users.length === 0) {
+			return res.status(400).json({ message: 'Invalid or expired password reset token' });
+		}
+
+		const userId = users[0].id;
+
+		const salt = await bcrypt.genSalt(10);
+		const password_hash = await bcrypt.hash(newPassword, salt);
+
+		await pool.query(
+			'UPDATE users SET password_hash = ?, reset_token = NULL, reset_token_expires = NULL WHERE id = ?', 
+			[password_hash, userId]
+		);
+
+		await logUserAction({ user: { id: userId, ip_address: req.ip } }, 'RESET_PASSWORD', 'users', userId);
+
+		res.json({ message: 'Password has been reset successfully. You can now log in.' });
+	} catch (error) {
+		res.status(500).json({ message: 'Error resetting password', error: error.message });
+	}
 };

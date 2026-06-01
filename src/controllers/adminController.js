@@ -212,14 +212,33 @@ exports.updateUser = async (req, res) => {
 // Delete an existing user
 exports.deleteUser = async (req, res) => {
     const { id } = req.params;
+    const connection = await pool.getConnection();
     try {
-        const [result] = await pool.query('DELETE FROM users WHERE id = ?', [id]);
+        await connection.beginTransaction();
+
+        // Cascade deletes to prevent foreign key constraint errors
+        await connection.query('DELETE FROM booking_payments WHERE booking_id IN (SELECT id FROM bookings WHERE user_id = ?)', [id]);
+        await connection.query('DELETE FROM booking_payments WHERE booking_id IN (SELECT id FROM bookings WHERE class_id IN (SELECT id FROM classes WHERE instructor_id = ?))', [id]);
+        await connection.query('DELETE FROM bookings WHERE user_id = ?', [id]);
+        await connection.query('DELETE FROM bookings WHERE class_id IN (SELECT id FROM classes WHERE instructor_id = ?)', [id]);
+        await connection.query('DELETE FROM classes WHERE instructor_id = ?', [id]);
+        await connection.query('DELETE FROM instructor_profiles WHERE user_id = ?', [id]);
+        await connection.query('DELETE FROM notifications WHERE user_id = ?', [id]);
+        await connection.query('DELETE FROM user_roles WHERE user_id = ?', [id]);
+
+        const [result] = await connection.query('DELETE FROM users WHERE id = ?', [id]);
         if (result.affectedRows === 0) {
+            await connection.rollback();
             return res.status(404).json({ message: 'User not found' });
         }
+
+        await connection.commit();
         await logAdminAction(req, 'DELETE', 'users', id);
         res.json({ message: 'User deleted successfully' });
     } catch (error) {
+        await connection.rollback();
         res.status(500).json({ message: 'Error deleting user', error: error.message });
+    } finally {
+        connection.release();
     }
 };

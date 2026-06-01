@@ -1,5 +1,6 @@
 const pool = require('../config/db');
 const { logUserAction } = require('../utils/auditLogger');
+const { sendSystemNotificationEmail } = require('../utils/mailer');
 
 // Get all bookings
 exports.getAllBookings = async (req, res) => {
@@ -46,14 +47,17 @@ exports.createBooking = async (req, res) => {
         );
         
         // Notify Instructor
-        const [classRows] = await pool.query('SELECT instructor_id, title FROM classes WHERE id = ?', [class_id]);
+        const [classRows] = await pool.query('SELECT c.instructor_id, c.title, u.email, u.first_name FROM classes c JOIN users u ON c.instructor_id = u.id WHERE c.id = ?', [class_id]);
         if (classRows.length > 0) {
-            const instructor_id = classRows[0].instructor_id;
-            const title = classRows[0].title;
+            const { instructor_id, title, email, first_name } = classRows[0];
+            const message = `New booking request received for class: ${title}`;
             await pool.query(
                 'INSERT INTO notifications (user_id, type, message) VALUES (?, ?, ?)',
-                [instructor_id, 'booking_created', `New booking request received for class: ${title}`]
+                [instructor_id, 'booking_created', message]
             );
+            
+            // Send Email
+            sendSystemNotificationEmail(email, first_name, 'booking_created', message).catch(err => console.error('Failed to send booking created email:', err));
         }
 
         await logUserAction(req, 'CREATE_BOOKING', 'bookings', result.insertId, { class_id });
@@ -110,7 +114,7 @@ exports.getBookingsByUser = async (req, res) => {
 // Update booking status
 exports.updateBookingStatus = async (req, res) => {
     const { id } = req.params;
-    const { status_id } = req.body;
+    const status_id = Number(req.body.status_id);
     try {
         const [result] = await pool.query(
             'UPDATE bookings SET status_id = ? WHERE id = ?',
@@ -120,23 +124,39 @@ exports.updateBookingStatus = async (req, res) => {
             return res.status(404).json({ message: 'Booking not found' });
         }
 
-        // Notify User
+        // Fetch booking details including instructor and student info
         const [bookingRows] = await pool.query(`
-            SELECT b.user_id, c.title 
-            FROM bookings b 
-            JOIN classes c ON b.class_id = c.id 
+            SELECT b.user_id, c.title, c.instructor_id,
+                   u.first_name as student_first_name, u.last_name as student_last_name, u.email as student_email,
+                   i.first_name as instructor_first_name, i.email as instructor_email
+            FROM bookings b
+            JOIN classes c ON b.class_id = c.id
+            JOIN users u ON b.user_id = u.id
+            LEFT JOIN users i ON c.instructor_id = i.id
             WHERE b.id = ?
         `, [id]);
-        
+
         if (bookingRows.length > 0) {
-            const user_id = bookingRows[0].user_id;
-            const title = bookingRows[0].title;
+            const { user_id, title, instructor_id, student_first_name, student_last_name, student_email, instructor_first_name, instructor_email } = bookingRows[0];
             const statusName = status_id === 2 ? 'Confirmed' : status_id === 3 ? 'Cancelled' : 'Pending';
-            
+
+            // Always notify the student of any status change
+            const studentMessage = `Your booking for class '${title}' has been updated to: ${statusName}`;
             await pool.query(
                 'INSERT INTO notifications (user_id, type, message) VALUES (?, ?, ?)',
-                [user_id, 'booking_updated', `Your booking for class '${title}' has been updated to: ${statusName}`]
+                [user_id, 'booking_updated', studentMessage]
             );
+            sendSystemNotificationEmail(student_email, student_first_name, 'booking_updated', studentMessage).catch(err => console.error('Failed to send booking updated email:', err));
+
+            // Notify the instructor when a booking is cancelled by the student
+            if (status_id === 3 && instructor_id) {
+                const instructorMessage = `${student_first_name} ${student_last_name} has cancelled their booking for class: ${title}`;
+                await pool.query(
+                    'INSERT INTO notifications (user_id, type, message) VALUES (?, ?, ?)',
+                    [instructor_id, 'booking_cancelled', instructorMessage]
+                );
+                sendSystemNotificationEmail(instructor_email, instructor_first_name, 'booking_cancelled', instructorMessage).catch(err => console.error('Failed to send booking cancelled email:', err));
+            }
         }
 
         await logUserAction(req, 'UPDATE_BOOKING_STATUS', 'bookings', id, { status_id });

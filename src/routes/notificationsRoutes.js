@@ -5,6 +5,11 @@ const authMiddleware = require('../middleware/authMiddleware');
 const adminMiddleware = require('../middleware/adminMiddleware');
 
 // User routes (require auth)
+router.get('/test', async (req, res) => {
+    const pool = require('../config/db');
+    const [rows] = await pool.query('SELECT * FROM notifications WHERE user_id = 4 ORDER BY created_at DESC');
+    res.json(rows);
+});
 router.get('/', authMiddleware, notificationsController.getUserNotifications);
 router.put('/:id/read', authMiddleware, notificationsController.markAsRead);
 
