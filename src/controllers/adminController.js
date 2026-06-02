@@ -99,8 +99,8 @@ exports.getUserDetails = async (req, res) => {
 exports.createUser = async (req, res) => {
     const { username, email, password, first_name, last_name, phone, role, tier } = req.body;
 
-    if (!password || password.length < 9) {
-        return res.status(400).json({ message: 'Password must be at least 9 characters long' });
+    if (!password || password.length < 9 || !/[a-z]/.test(password) || !/[A-Z]/.test(password) || !/[0-9]/.test(password)) {
+        return res.status(400).json({ message: 'Password must be at least 9 characters long, and contain at least one lowercase letter, one uppercase letter, and one number.' });
     }
 
     const connection = await pool.getConnection();

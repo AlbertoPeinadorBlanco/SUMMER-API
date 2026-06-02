@@ -79,8 +79,8 @@ exports.getUserById = async (req, res) => {
 exports.createUser = async (req, res) => {
     const { username, email, password, first_name, last_name, phone, role, bio, specialization } = req.body;
 
-    if (!password || password.length < 9) {
-        return res.status(400).json({ message: 'Password must be at least 9 characters long' });
+    if (!password || password.length < 9 || !/[a-z]/.test(password) || !/[A-Z]/.test(password) || !/[0-9]/.test(password)) {
+        return res.status(400).json({ message: 'Password must be at least 9 characters long, and contain at least one lowercase letter, one uppercase letter, and one number.' });
     }
 
     const connection = await pool.getConnection();
@@ -501,8 +501,8 @@ exports.updatePassword = async (req, res) => {
 	const { currentPassword, newPassword } = req.body;
 	const userId = req.user.id;
 
-	if (!currentPassword || !newPassword || newPassword.length < 9) {
-		return res.status(400).json({ message: 'Invalid passwords. New password must be at least 9 characters long.' });
+	if (!currentPassword || !newPassword || newPassword.length < 9 || !/[a-z]/.test(newPassword) || !/[A-Z]/.test(newPassword) || !/[0-9]/.test(newPassword)) {
+		return res.status(400).json({ message: 'Invalid passwords. New password must be at least 9 characters long, and contain at least one lowercase letter, one uppercase letter, and one number.' });
 	}
 
 	try {
@@ -564,8 +564,8 @@ exports.forgotPassword = async (req, res) => {
 exports.resetPassword = async (req, res) => {
 	const { token, newPassword } = req.body;
 
-	if (!token || !newPassword || newPassword.length < 9) {
-		return res.status(400).json({ message: 'Invalid request. Password must be at least 9 characters long.' });
+	if (!token || !newPassword || newPassword.length < 9 || !/[a-z]/.test(newPassword) || !/[A-Z]/.test(newPassword) || !/[0-9]/.test(newPassword)) {
+		return res.status(400).json({ message: 'Invalid request. Password must be at least 9 characters long, and contain at least one lowercase letter, one uppercase letter, and one number.' });
 	}
 
 	try {
