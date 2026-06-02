@@ -167,9 +167,42 @@ async function sendSystemNotificationEmail(toEmail, userName, notificationType, 
     return data;
 }
 
+// ─────────────────────────────────────────────────
+// Email: Support / Contact Form
+// ─────────────────────────────────────────────────
+async function sendSupportEmail(name, email, subject, message) {
+    const toEmail = process.env.SUPPORT_EMAIL || 'surfmarket.contact@gmail.com';
+    const { data, error } = await resend.emails.send({
+        from: FROM,
+        to: toEmail,
+        subject: `[Support Request] ${subject}`,
+        html: wrapEmail(`
+            <div class="badge">Contact Form Submission</div>
+            <p>You have received a new message from the contact form on Summer Marketplace:</p>
+            <div style="background:#f8f9fa;border-left:4px solid #E26D3F;padding:16px 20px;border-radius:0 8px 8px 0;margin:20px 0;">
+                <p style="margin:0 0 8px;"><strong>Name:</strong> ${name}</p>
+                <p style="margin:0 0 8px;"><strong>Email:</strong> <a href="mailto:${email}">${email}</a></p>
+                <p style="margin:0 0 8px;"><strong>Subject:</strong> ${subject}</p>
+                <br/>
+                <p style="margin:0;white-space:pre-wrap;"><strong>Message:</strong><br/>${message.replace(/\n/g, '<br/>')}</p>
+            </div>
+            <p>You can reply directly to this email to respond to ${name}.</p>
+        `),
+        reply_to: email // This ensures that when they click 'Reply' in Gmail, it replies to the user, not the server.
+    });
+
+    if (error) {
+        console.error('[MAILER] Failed to send support email:', error);
+        throw new Error(error.message);
+    }
+    console.log('[MAILER] Support email sent. ID:', data?.id);
+    return data;
+}
+
 module.exports = {
     sendVerificationEmail,
     sendPasswordResetEmail,
     sendDirectMessageEmail,
-    sendSystemNotificationEmail
+    sendSystemNotificationEmail,
+    sendSupportEmail
 };

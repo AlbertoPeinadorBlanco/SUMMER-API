@@ -21,6 +21,7 @@ const bannersRoutes = require('./routes/bannersRoutes');
 const authRoutes = require('./routes/authRoutes');
 const stripeRoutes = require('./routes/stripeRoutes');
 const weatherRoutes = require('./routes/weatherRoutes');
+const contactRoutes = require('./routes/contactRoutes');
 const sitemapController = require('./controllers/sitemapController');
 const trafficLogger = require('./middleware/trafficLogger');
 const startSubscriptionReminders = require('./cron/subscriptionReminders');
@@ -102,6 +103,7 @@ app.use('/api/logs', auditLogsRoutes);
 app.use('/api/banners', bannersRoutes);
 app.use('/api/stripe', stripeRoutes);
 app.use('/api/weather', weatherRoutes);
+app.use('/api/contact', contactRoutes);
 
 // Base route
 app.get('/', (req, res) => {

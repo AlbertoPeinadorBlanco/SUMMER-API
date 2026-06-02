@@ -23,10 +23,16 @@ jobs:
           script: |
             set -e
 
-            cd /opt/surfmarket
+            cd ~/SURFING/CODE
 
             # Pull latest code
+            cd ~/SURFING/CODE/SUMMER
             git pull origin main
+            
+            cd ~/SURFING/CODE/SUMMER-API
+            git pull origin main
+
+            cd ~/SURFING/CODE
 
             # Rebuild and restart only changed containers (zero-downtime rolling update)
             docker compose pull
