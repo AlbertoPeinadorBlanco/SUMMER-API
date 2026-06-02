@@ -43,7 +43,7 @@ exports.createCheckoutSession = async (req, res) => {
                 },
             ],
             // Ensure we use the proper FRONTEND_URL
-            success_url: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/profile?success=true`,
+            success_url: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/profile?success=true&item=${item_key}`,
             cancel_url: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/profile?canceled=true`,
             metadata: {
                 userId: userId.toString(),
