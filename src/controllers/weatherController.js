@@ -10,7 +10,7 @@ exports.getLiveConditions = async (req, res) => {
     try {
         const [weatherRes, marineRes] = await Promise.all([
             fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code,wind_speed_10m,wind_direction_10m,visibility&daily=sunrise,sunset,uv_index_max&timezone=auto`),
-            fetch(`https://marine-api.open-meteo.com/v1/marine?latitude=${lat}&longitude=${lon}&current=wave_height,wave_period`)
+            fetch(`https://marine-api.open-meteo.com/v1/marine?latitude=${lat}&longitude=${lon}&current=wave_height,wave_period&hourly=wave_height,wave_period&timezone=auto`)
         ]);
 
         if (!weatherRes.ok || !marineRes.ok) {
@@ -23,15 +23,9 @@ exports.getLiveConditions = async (req, res) => {
         let marineData = null;
         if (marineJson.current) {
             marineData = marineJson.current;
-        } else if (marineJson.hourly) {
-            marineData = {
-                wave_height: marineJson.hourly.wave_height[0],
-                wave_period: marineJson.hourly.wave_period[0]
-            };
         }
 
         if (marineData) {
-            // Calculate real-time tide using local Cantabrian function
             marineData.tide = calculateTide(lat, lon);
             
             // Try to fetch AEMET water temperature if API key and ID are present
@@ -45,8 +39,6 @@ exports.getLiveConditions = async (req, res) => {
                             const aemetDataRes = await fetch(aemetInitialData.datos);
                             if (aemetDataRes.ok) {
                                 const beachData = await aemetDataRes.json();
-                                // Extract t_agua (water temp). It may be structured depending on the hour/day.
-                                // It usually comes in an array like beachData[0].prediccion.dia[0].tAgua.valor1
                                 if (beachData && beachData[0] && beachData[0].prediccion && beachData[0].prediccion.dia[0]) {
                                     const tAgua = beachData[0].prediccion.dia[0].tAgua;
                                     if (tAgua) {
@@ -63,8 +55,10 @@ exports.getLiveConditions = async (req, res) => {
 
             if (aemetTemp !== null && !isNaN(parseFloat(aemetTemp))) {
                 marineData.water_temperature = parseFloat(aemetTemp).toFixed(1);
+            } else if (marineData.ocean_temperature !== undefined && marineData.ocean_temperature !== null) {
+                marineData.water_temperature = marineData.ocean_temperature.toFixed(1);
             } else {
-                // Fallback simulation if AEMET fails or ID/key is missing
+                // Fallback simulation if both AEMET and Open-Meteo fail
                 const seed = Math.abs(parseFloat(lat) + parseFloat(lon));
                 marineData.water_temperature = (15 + (seed % 6)).toFixed(1); 
             }

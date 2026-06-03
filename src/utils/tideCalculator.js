@@ -1,59 +1,42 @@
-// Simple harmonic tide calculator for the Cantabrian Sea (Asturias)
-// Tides in this region are semi-diurnal (two high and two low tides roughly every 24 hours 50 minutes)
+/**
+ * Fallback tide calculator using astronomical approximation
+ * Returns the state of the tide (subiendo/bajando) and time until next extreme.
+ */
+function calculateTide(lat, lon) {
+    const now = new Date();
+    // Use an arbitrary epoch for M2 tidal constituent (approx 12h 25m)
+    const M2_PERIOD_MS = 12 * 60 * 60 * 1000 + 25 * 60 * 1000;
+    
+    // Create a predictable offset based on coordinates
+    const offsetMs = (Math.abs(lat) + Math.abs(lon)) * 1000000;
+    
+    const elapsed = now.getTime() + offsetMs;
+    const phase = (elapsed % M2_PERIOD_MS) / M2_PERIOD_MS; // 0.0 to 1.0
 
-exports.calculateTide = (lat, lon) => {
-    // The tidal cycle is approximately 12 hours and 25.2 minutes (M2 constituent)
-    const M2_PERIOD_MS = 12.4206012 * 60 * 60 * 1000;
+    // High tide at phase 0.0 and 1.0
+    // Low tide at phase 0.5
+    const isRising = phase > 0.5;
     
-    // Arbitrary recent high tide epoch for Asturias (UTC) - e.g., 2026-06-01T02:00:00Z
-    // This allows the math to generate realistic cyclical values relative to a fixed point in time.
-    const epochHighTide = new Date('2026-06-01T02:00:00Z').getTime();
-    
-    const now = Date.now();
-    const elapsed = now - epochHighTide;
-    
+    let nextState = '';
+    let msUntilNext = 0;
 
-    
-    // Add a slight phase shift based on longitude to account for east-west differences
-    // (Asturias is around -6 lon). 1 degree lon is roughly 4 mins shift.
-    const lonShiftMs = (parseFloat(lon) + 6) * 4 * 60 * 1000;
-    
-    // Adjust elapsed time
-    const adjustedElapsed = elapsed + lonShiftMs;
-    
-    // Calculate phase (0 to 2*PI). A phase of 0 means high tide, PI means low tide.
-    const phase = (adjustedElapsed % M2_PERIOD_MS) / M2_PERIOD_MS * 2 * Math.PI;
-    
-    // Determine state
-    // Phase 0 to PI: dropping (bajando), towards low tide.
-    // Phase PI to 2*PI: rising (subiendo), towards high tide.
-    const isRising = phase >= Math.PI;
-    
-    // Time until next state
-    let msUntilNext;
-    let nextState;
-    
     if (isRising) {
-        nextState = 'high';
-        // Next high tide is at 2*PI
-        const msCurrentPhase = (phase / (2 * Math.PI)) * M2_PERIOD_MS;
-        msUntilNext = M2_PERIOD_MS - msCurrentPhase;
+        nextState = 'pleamar';
+        msUntilNext = (1.0 - phase) * M2_PERIOD_MS;
     } else {
-        nextState = 'low';
-        // Next low tide is at PI
-        const msCurrentPhase = (phase / (2 * Math.PI)) * M2_PERIOD_MS;
-        const msAtPi = M2_PERIOD_MS / 2;
-        msUntilNext = msAtPi - msCurrentPhase;
+        nextState = 'bajamar';
+        msUntilNext = (0.5 - phase) * M2_PERIOD_MS;
     }
-    
-    const totalMinutes = Math.floor(msUntilNext / 60000);
-    const hours = Math.floor(totalMinutes / 60);
-    const minutes = totalMinutes % 60;
-    
+
+    const hours = Math.floor(msUntilNext / (1000 * 60 * 60));
+    const minutes = Math.floor((msUntilNext % (1000 * 60 * 60)) / (1000 * 60));
+
     return {
         isRising,
         nextState,
         hours,
         minutes
     };
-};
+}
+
+module.exports = { calculateTide };
