@@ -361,7 +361,7 @@ exports.getFeaturedInstructor = async (req, res) => {
     try {
         const query = `
             SELECT u.id, u.username, u.first_name, u.last_name, u.profile_picture_url,
-                   ip.bio, ip.specialization, ip.featured_until, ip.allow_communications
+                   ip.bio, ip.specialization, ip.featured_until, ip.allow_communications, ip.rating
             FROM users u
             JOIN instructor_profiles ip ON u.id = ip.user_id
             WHERE ip.featured_until > NOW()

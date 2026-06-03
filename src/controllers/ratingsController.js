@@ -62,7 +62,7 @@ exports.getInstructorRatings = async (req, res) => {
 
     try {
         const [ratings] = await pool.query(`
-            SELECT r.id, r.rating, r.comment, r.created_at, CONCAT(u.first_name, ' ', u.last_name) as student_name
+            SELECT r.id, r.rating, r.comment, r.created_at, CONCAT(u.first_name, ' ', u.last_name) as student_name, u.profile_picture_url
             FROM instructor_ratings r
             JOIN users u ON r.student_id = u.id
             WHERE r.instructor_id = ?

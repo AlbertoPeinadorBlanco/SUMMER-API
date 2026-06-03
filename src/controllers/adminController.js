@@ -256,14 +256,84 @@ exports.deleteUser = async (req, res) => {
     }
 };
 
+// Create a new rating
+exports.createRating = async (req, res) => {
+    const { instructor_id, student_id, booking_id, rating, comment } = req.body;
+    
+    if (!instructor_id || !student_id || !booking_id || !rating) {
+        return res.status(400).json({ message: 'instructor_id, student_id, booking_id, and rating are required.' });
+    }
+
+    try {
+        const [result] = await pool.query(`
+            INSERT INTO instructor_ratings (instructor_id, student_id, booking_id, rating, comment)
+            VALUES (?, ?, ?, ?, ?)
+        `, [instructor_id, student_id, booking_id, rating, comment || null]);
+
+        // Update the cached average rating in instructor_profiles
+        await pool.query(`
+            UPDATE instructor_profiles 
+            SET rating = (SELECT AVG(rating) FROM instructor_ratings WHERE instructor_id = ?)
+            WHERE user_id = ?
+        `, [instructor_id, instructor_id]);
+
+        await logAdminAction(req, 'CREATE', 'instructor_ratings', result.insertId);
+        res.status(201).json({ message: 'Rating created successfully', id: result.insertId });
+    } catch (error) {
+        res.status(500).json({ message: 'Error creating rating', error: error.message });
+    }
+};
+
+// Update a rating
+exports.updateRating = async (req, res) => {
+    const { id } = req.params;
+    const { rating, comment } = req.body;
+    
+    try {
+        const [rows] = await pool.query('SELECT instructor_id FROM instructor_ratings WHERE id = ?', [id]);
+        if (rows.length === 0) return res.status(404).json({ message: 'Rating not found' });
+        
+        const instructor_id = rows[0].instructor_id;
+
+        await pool.query(`
+            UPDATE instructor_ratings SET rating = ?, comment = ? WHERE id = ?
+        `, [rating, comment || null, id]);
+
+        // Update the cached average rating in instructor_profiles
+        await pool.query(`
+            UPDATE instructor_profiles 
+            SET rating = (SELECT AVG(rating) FROM instructor_ratings WHERE instructor_id = ?)
+            WHERE user_id = ?
+        `, [instructor_id, instructor_id]);
+
+        await logAdminAction(req, 'UPDATE', 'instructor_ratings', id);
+        res.json({ message: 'Rating updated successfully' });
+    } catch (error) {
+        res.status(500).json({ message: 'Error updating rating', error: error.message });
+    }
+};
+
 // Delete a rating
 exports.deleteRating = async (req, res) => {
     const { id } = req.params;
     try {
+        const [rows] = await pool.query('SELECT instructor_id FROM instructor_ratings WHERE id = ?', [id]);
+        if (rows.length === 0) return res.status(404).json({ message: 'Rating not found' });
+        
+        const instructor_id = rows[0].instructor_id;
+
         const [result] = await pool.query('DELETE FROM instructor_ratings WHERE id = ?', [id]);
         if (result.affectedRows === 0) {
             return res.status(404).json({ message: 'Rating not found' });
         }
+
+        // Update the cached average rating in instructor_profiles
+        await pool.query(`
+            UPDATE instructor_profiles 
+            SET rating = (SELECT AVG(rating) FROM instructor_ratings WHERE instructor_id = ?)
+            WHERE user_id = ?
+        `, [instructor_id, instructor_id]);
+
         await logAdminAction(req, 'DELETE', 'instructor_ratings', id);
         res.json({ message: 'Rating deleted successfully' });
     } catch (error) {
