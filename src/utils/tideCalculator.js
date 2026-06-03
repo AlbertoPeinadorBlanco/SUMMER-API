@@ -21,10 +21,10 @@ function calculateTide(lat, lon) {
     let msUntilNext = 0;
 
     if (isRising) {
-        nextState = 'pleamar';
+        nextState = 'high';
         msUntilNext = (1.0 - phase) * M2_PERIOD_MS;
     } else {
-        nextState = 'bajamar';
+        nextState = 'low';
         msUntilNext = (0.5 - phase) * M2_PERIOD_MS;
     }
 

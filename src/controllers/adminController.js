@@ -74,6 +74,7 @@ exports.getUserDetails = async (req, res) => {
 
         // Fetch adverts (classes created by user if instructor)
         let adverts = [];
+        let ratings = [];
         if (user.role === 'instructor' || user.role === 'admin') {
             const advertsQuery = `
                 SELECT id, title, price, is_active, created_at, capacity, starts_at, ends_at
@@ -83,12 +84,23 @@ exports.getUserDetails = async (req, res) => {
             `;
             const [classesRows] = await pool.query(advertsQuery, [id]);
             adverts = classesRows;
+
+            const ratingsQuery = `
+                SELECT r.id, r.rating, r.comment, r.created_at, u.first_name as student_name
+                FROM instructor_ratings r
+                JOIN users u ON r.student_id = u.id
+                WHERE r.instructor_id = ?
+                ORDER BY r.created_at DESC
+            `;
+            const [ratingsRows] = await pool.query(ratingsQuery, [id]);
+            ratings = ratingsRows;
         }
 
         res.json({
             user,
             bookings,
-            adverts
+            adverts,
+            ratings
         });
     } catch (error) {
         res.status(500).json({ message: 'Error fetching user details', error: error.message });
@@ -219,6 +231,7 @@ exports.deleteUser = async (req, res) => {
         // Cascade deletes to prevent foreign key constraint errors
         await connection.query('DELETE FROM booking_payments WHERE booking_id IN (SELECT id FROM bookings WHERE user_id = ?)', [id]);
         await connection.query('DELETE FROM booking_payments WHERE booking_id IN (SELECT id FROM bookings WHERE class_id IN (SELECT id FROM classes WHERE instructor_id = ?))', [id]);
+        await connection.query('DELETE FROM instructor_ratings WHERE student_id = ? OR instructor_id = ?', [id, id]);
         await connection.query('DELETE FROM bookings WHERE user_id = ?', [id]);
         await connection.query('DELETE FROM bookings WHERE class_id IN (SELECT id FROM classes WHERE instructor_id = ?)', [id]);
         await connection.query('DELETE FROM classes WHERE instructor_id = ?', [id]);
@@ -240,5 +253,46 @@ exports.deleteUser = async (req, res) => {
         res.status(500).json({ message: 'Error deleting user', error: error.message });
     } finally {
         connection.release();
+    }
+};
+
+// Delete a rating
+exports.deleteRating = async (req, res) => {
+    const { id } = req.params;
+    try {
+        const [result] = await pool.query('DELETE FROM instructor_ratings WHERE id = ?', [id]);
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ message: 'Rating not found' });
+        }
+        await logAdminAction(req, 'DELETE', 'instructor_ratings', id);
+        res.json({ message: 'Rating deleted successfully' });
+    } catch (error) {
+        res.status(500).json({ message: 'Error deleting rating', error: error.message });
+    }
+};
+
+// Send Verification Email manually from Admin panel
+exports.sendVerificationEmail = async (req, res) => {
+    const { id } = req.params;
+    try {
+        const [rows] = await pool.query('SELECT email, is_verified FROM users WHERE id = ?', [id]);
+        if (rows.length === 0) return res.status(404).json({ message: 'User not found' });
+
+        const user = rows[0];
+        if (user.is_verified) {
+            return res.status(400).json({ message: 'User is already verified' });
+        }
+
+        const crypto = require('crypto');
+        const { sendVerificationEmail } = require('../utils/mailer');
+        const verificationToken = crypto.randomBytes(32).toString('hex');
+        
+        await pool.query('UPDATE users SET verification_token = ? WHERE id = ?', [verificationToken, id]);
+        await sendVerificationEmail(user.email, verificationToken);
+        
+        await logAdminAction(req, 'UPDATE', 'users_verification', id);
+        res.json({ message: 'Verification email sent successfully' });
+    } catch (error) {
+        res.status(500).json({ message: 'Error sending verification email', error: error.message });
     }
 };
