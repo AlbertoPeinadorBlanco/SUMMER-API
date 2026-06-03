@@ -23,8 +23,45 @@ exports.calculateTide = (lat, lon) => {
     const tideHeight = meanLevel + amplitude * Math.cos(phase);
     
     // Add a slight phase shift based on longitude to account for east-west differences
-    // (Asturias is around -6 lon)
-    const lonShift = (parseFloat(lon) + 6) * 0.1; 
+    // (Asturias is around -6 lon). 1 degree lon is roughly 4 mins shift.
+    const lonShiftMs = (parseFloat(lon) + 6) * 4 * 60 * 1000;
     
-    return (tideHeight + lonShift).toFixed(2);
+    // Adjust elapsed time
+    const adjustedElapsed = elapsed + lonShiftMs;
+    
+    // Calculate phase (0 to 2*PI). A phase of 0 means high tide, PI means low tide.
+    const phase = (adjustedElapsed % M2_PERIOD_MS) / M2_PERIOD_MS * 2 * Math.PI;
+    
+    // Determine state
+    // Phase 0 to PI: dropping (bajando), towards low tide.
+    // Phase PI to 2*PI: rising (subiendo), towards high tide.
+    const isRising = phase >= Math.PI;
+    
+    // Time until next state
+    let msUntilNext;
+    let nextState;
+    
+    if (isRising) {
+        nextState = 'high';
+        // Next high tide is at 2*PI
+        const msCurrentPhase = (phase / (2 * Math.PI)) * M2_PERIOD_MS;
+        msUntilNext = M2_PERIOD_MS - msCurrentPhase;
+    } else {
+        nextState = 'low';
+        // Next low tide is at PI
+        const msCurrentPhase = (phase / (2 * Math.PI)) * M2_PERIOD_MS;
+        const msAtPi = M2_PERIOD_MS / 2;
+        msUntilNext = msAtPi - msCurrentPhase;
+    }
+    
+    const totalMinutes = Math.floor(msUntilNext / 60000);
+    const hours = Math.floor(totalMinutes / 60);
+    const minutes = totalMinutes % 60;
+    
+    return {
+        isRising,
+        nextState,
+        hours,
+        minutes
+    };
 };
