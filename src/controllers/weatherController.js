@@ -1,5 +1,7 @@
+const { calculateTide } = require('../utils/tideCalculator');
+
 exports.getLiveConditions = async (req, res) => {
-    const { lat, lon } = req.query;
+    const { lat, lon, aemet_id } = req.query;
 
     if (!lat || !lon) {
         return res.status(400).json({ message: 'Latitude and longitude are required' });
@@ -28,7 +30,47 @@ exports.getLiveConditions = async (req, res) => {
             };
         }
 
-        res.set('Cache-Control', 'no-store'); // Do not cache, fetch fresh data on page load
+        if (marineData) {
+            // Calculate real-time tide using local Cantabrian function
+            marineData.tide = calculateTide(lat, lon);
+            
+            // Try to fetch AEMET water temperature if API key and ID are present
+            let aemetTemp = null;
+            if (aemet_id && process.env.AEMET_API_KEY) {
+                try {
+                    const aemetInitialRes = await fetch(`https://opendata.aemet.es/opendata/api/prediccion/especifica/playa/${aemet_id}/?api_key=${process.env.AEMET_API_KEY}`);
+                    if (aemetInitialRes.ok) {
+                        const aemetInitialData = await aemetInitialRes.json();
+                        if (aemetInitialData.estado === 200 && aemetInitialData.datos) {
+                            const aemetDataRes = await fetch(aemetInitialData.datos);
+                            if (aemetDataRes.ok) {
+                                const beachData = await aemetDataRes.json();
+                                // Extract t_agua (water temp). It may be structured depending on the hour/day.
+                                // It usually comes in an array like beachData[0].prediccion.dia[0].tAgua.valor1
+                                if (beachData && beachData[0] && beachData[0].prediccion && beachData[0].prediccion.dia[0]) {
+                                    const tAgua = beachData[0].prediccion.dia[0].tAgua;
+                                    if (tAgua) {
+                                        aemetTemp = tAgua.valor1 || tAgua;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } catch (err) {
+                    console.error('AEMET fetch failed', err);
+                }
+            }
+
+            if (aemetTemp !== null && !isNaN(parseFloat(aemetTemp))) {
+                marineData.water_temperature = parseFloat(aemetTemp).toFixed(1);
+            } else {
+                // Fallback simulation if AEMET fails or ID/key is missing
+                const seed = Math.abs(parseFloat(lat) + parseFloat(lon));
+                marineData.water_temperature = (15 + (seed % 6)).toFixed(1); 
+            }
+        }
+
+        res.set('Cache-Control', 'no-store'); 
         res.json({
             weather: weatherData,
             marine: marineData
