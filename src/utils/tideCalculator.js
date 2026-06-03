@@ -12,15 +12,7 @@ exports.calculateTide = (lat, lon) => {
     const now = Date.now();
     const elapsed = now - epochHighTide;
     
-    // Calculate phase (0 to 2*PI). A phase of 0 means high tide, PI means low tide.
-    const phase = (elapsed % M2_PERIOD_MS) / M2_PERIOD_MS * 2 * Math.PI;
-    
-    // Mean sea level offset and amplitude for Cantabrian sea (approximate in meters)
-    const amplitude = 1.6; 
-    const meanLevel = 2.0;
-    
-    // Cosine wave: Peak at phase=0, trough at phase=PI
-    const tideHeight = meanLevel + amplitude * Math.cos(phase);
+
     
     // Add a slight phase shift based on longitude to account for east-west differences
     // (Asturias is around -6 lon). 1 degree lon is roughly 4 mins shift.
