@@ -43,6 +43,13 @@ exports.submitRating = async (req, res) => {
             VALUES (?, ?, ?, ?, ?)
         `, [booking.instructor_id, student_id, booking_id, rating, comment || null]);
 
+        // Update the cached average rating in instructor_profiles
+        await pool.query(`
+            UPDATE instructor_profiles 
+            SET rating = (SELECT AVG(rating) FROM instructor_ratings WHERE instructor_id = ?)
+            WHERE user_id = ?
+        `, [booking.instructor_id, booking.instructor_id]);
+
         res.status(201).json({ message: 'Rating submitted successfully.' });
     } catch (error) {
         console.error('Error submitting rating:', error);
@@ -55,7 +62,7 @@ exports.getInstructorRatings = async (req, res) => {
 
     try {
         const [ratings] = await pool.query(`
-            SELECT r.id, r.rating, r.comment, r.created_at, u.full_name as student_name
+            SELECT r.id, r.rating, r.comment, r.created_at, CONCAT(u.first_name, ' ', u.last_name) as student_name
             FROM instructor_ratings r
             JOIN users u ON r.student_id = u.id
             WHERE r.instructor_id = ?
