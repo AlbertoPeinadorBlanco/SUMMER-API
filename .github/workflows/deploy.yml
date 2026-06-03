@@ -38,6 +38,9 @@ jobs:
             docker compose pull
             docker compose up -d --build --remove-orphans
 
+            # Restart Nginx to flush old Docker IP addresses and prevent 502 Bad Gateway
+            docker compose restart nginx
+
             # Remove unused images to keep disk clean
             docker image prune -f
 
