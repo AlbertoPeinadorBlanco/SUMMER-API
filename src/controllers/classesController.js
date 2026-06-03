@@ -11,7 +11,7 @@ exports.getAllClasses = async (req, res) => {
                    c.title_es, c.description_es, c.difficulty_level, c.sport_type,
                    (SELECT COUNT(*) FROM bookings b WHERE b.class_id = c.id AND b.status_id != 3) as bookings_count,
                    u.first_name, u.last_name, u.profile_picture_url, u.username as instructor_username,
-                   u.email, u.phone, u.tier as instructor_tier, u.is_verified, u.tier_expires_at,
+                   u.email, u.phone, u.is_verified,
                    ip.video_url, ip.booking_link, ip.available_today, ip.featured_until, c.bumped_at, ip.rating
             FROM classes c
             JOIN class_types ct ON c.class_type_id = ct.id
@@ -24,11 +24,11 @@ exports.getAllClasses = async (req, res) => {
             query += ` WHERE c.instructor_id = ?`;
             params.push(req.query.instructor_id);
         } else {
-            // General marketplace listing: filter unverified, basic, and expired tiers
-            query += ` WHERE u.is_verified = 1 AND u.tier != 'basic' AND (u.tier_expires_at IS NULL OR u.tier_expires_at > NOW())`;
+            // General marketplace listing: filter unverified
+            query += ` WHERE u.is_verified = 1`;
         }
 
-        query += ` ORDER BY CASE WHEN c.bumped_at IS NOT NULL AND c.bumped_at > DATE_SUB(NOW(), INTERVAL 24 HOUR) THEN c.bumped_at ELSE '2000-01-01' END DESC, CASE WHEN u.tier = 'premium' THEN 1 ELSE 2 END ASC, c.created_at DESC`;
+        query += ` ORDER BY CASE WHEN ip.featured_until IS NOT NULL AND ip.featured_until > NOW() THEN 1 ELSE 2 END ASC, CASE WHEN c.bumped_at IS NOT NULL AND c.bumped_at > DATE_SUB(NOW(), INTERVAL 24 HOUR) THEN c.bumped_at ELSE '2000-01-01' END DESC, c.created_at DESC`;
 
         const [rows] = await pool.query(query, params);
         if (!req.query.instructor_id) {
@@ -53,7 +53,7 @@ exports.getClassById = async (req, res) => {
                    c.title_es, c.description_es, c.difficulty_level, c.sport_type,
                    (SELECT COUNT(*) FROM bookings b WHERE b.class_id = c.id AND b.status_id != 3) as bookings_count,
                    u.first_name, u.last_name, u.profile_picture_url, u.username as instructor_username,
-                   u.email, u.phone, u.tier as instructor_tier, u.is_verified, u.tier_expires_at,
+                   u.email, u.phone, u.is_verified,
                    ip.video_url, ip.booking_link, ip.available_today, ip.featured_until, c.bumped_at, ip.rating
             FROM classes c
             JOIN class_types ct ON c.class_type_id = ct.id
@@ -79,6 +79,16 @@ exports.createClass = async (req, res) => {
     } = req.body;
     
     try {
+        // Enforce class creation limits based on advert slots
+        const [counts] = await pool.query('SELECT COUNT(*) as count FROM classes WHERE instructor_id = ?', [instructor_id]);
+        const currentClasses = counts[0].count;
+        const [prof] = await pool.query('SELECT extra_advert_slots FROM instructor_profiles WHERE user_id = ?', [instructor_id]);
+        const extraSlots = prof.length > 0 ? prof[0].extra_advert_slots : 0;
+        
+        if (currentClasses >= 1 + extraSlots) {
+            return res.status(403).json({ message: 'You have reached your advert limit. Please purchase an additional advert slot.' });
+        }
+
         const [result] = await pool.query(
             `INSERT INTO classes 
             (instructor_id, class_type_id, title, description, title_es, description_es, price, capacity, duration_minutes, starts_at, ends_at, location, is_online, difficulty_level, sport_type) 

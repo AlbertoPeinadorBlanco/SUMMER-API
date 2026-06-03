@@ -24,7 +24,6 @@ const weatherRoutes = require('./routes/weatherRoutes');
 const contactRoutes = require('./routes/contactRoutes');
 const sitemapController = require('./controllers/sitemapController');
 const trafficLogger = require('./middleware/trafficLogger');
-const startSubscriptionReminders = require('./cron/subscriptionReminders');
 const startRatingReminders = require('./cron/ratingReminders');
 const pool = require('./config/db');
 
@@ -56,7 +55,6 @@ pool.query(createRatingsTableQuery)
   .catch(e => console.log('instructor_ratings migration:', e.message));
 
 // Start cron jobs
-startSubscriptionReminders();
 startRatingReminders();
 
 const app = express();

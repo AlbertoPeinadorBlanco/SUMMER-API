@@ -10,10 +10,10 @@ const { sendVerificationEmail, sendPasswordResetEmail } = require('../utils/mail
 exports.getAllUsers = async (req, res) => {
     try {
         let query = `
-            SELECT u.id, u.username, u.email, u.first_name, u.last_name, u.phone, u.is_active, u.is_verified, u.created_at, u.updated_at, u.profile_picture_url, u.tier,
-                   u.tier_expires_at, r.name as role, ip.bio, ip.specialization, ip.rating,
+            SELECT u.id, u.username, u.email, u.first_name, u.last_name, u.phone, u.is_active, u.is_verified, u.created_at, u.updated_at, u.profile_picture_url,
+                   r.name as role, ip.bio, ip.specialization, ip.rating,
                    ip.has_video_upgrade, ip.has_link_upgrade, ip.has_badge_upgrade, ip.video_url, ip.booking_link, ip.available_today,
-                   ip.featured_until, ip.allow_communications
+                   ip.featured_until, ip.allow_communications, ip.extra_advert_slots
             FROM users u
             LEFT JOIN user_roles ur ON u.id = ur.user_id
             LEFT JOIN roles r ON ur.role_id = r.id
@@ -27,7 +27,7 @@ exports.getAllUsers = async (req, res) => {
             params.push(req.query.role);
             
             if (req.query.role === 'instructor') {
-                query += ` AND u.is_verified = 1 AND u.tier != 'basic' AND (u.tier_expires_at IS NULL OR u.tier_expires_at > NOW())`;
+                query += ` AND u.is_verified = 1`;
             }
         }
 
@@ -44,10 +44,10 @@ exports.getUserById = async (req, res) => {
     const { id } = req.params;
     try {
         const query = `
-            SELECT u.id, u.username, u.email, u.first_name, u.last_name, u.phone, u.is_active, u.is_verified, u.created_at, u.updated_at, u.profile_picture_url, u.tier,
-                   u.tier_expires_at, r.name as role, ip.bio, ip.specialization, ip.rating,
+            SELECT u.id, u.username, u.email, u.first_name, u.last_name, u.phone, u.is_active, u.is_verified, u.created_at, u.updated_at, u.profile_picture_url,
+                   r.name as role, ip.bio, ip.specialization, ip.rating,
                    ip.has_video_upgrade, ip.has_link_upgrade, ip.has_badge_upgrade, ip.video_url, ip.booking_link, ip.available_today,
-                   ip.featured_until, ip.allow_communications
+                   ip.featured_until, ip.allow_communications, ip.extra_advert_slots
             FROM users u
             LEFT JOIN user_roles ur ON u.id = ur.user_id
             LEFT JOIN roles r ON ur.role_id = r.id
@@ -63,9 +63,8 @@ exports.getUserById = async (req, res) => {
 
         // Hide unverified or unsubscribed instructor profiles from public view
         if (user.role === 'instructor') {
-            const isSubscriptionExpired = user.tier_expires_at && new Date(user.tier_expires_at) < new Date();
-            if (!user.is_verified || user.tier === 'basic' || isSubscriptionExpired) {
-                return res.status(403).json({ message: 'Instructor profile is hidden or inactive' });
+            if (!user.is_verified) {
+                return res.status(403).json({ message: 'Instructor profile is pending verification.' });
             }
         }
 
@@ -262,36 +261,6 @@ exports.uploadPicture = async (req, res) => {
     }
 };
 
-// Upgrade user to a specific tier
-exports.upgradeUser = async (req, res) => {
-    const { id } = req.params;
-    const { tier } = req.body; // 'summer_pass' or 'premium'
-    
-    // Ensure the logged-in user is upgrading their own profile
-    if (req.user.userId !== parseInt(id)) {
-        return res.status(403).json({ message: 'Not authorized to upgrade this profile' });
-    }
-
-    if (!tier || !['premium', 'summer_pass'].includes(tier)) {
-        return res.status(400).json({ message: 'Invalid tier specified' });
-    }
-
-    try {
-        const [result] = await pool.query(
-            'UPDATE users SET tier = ? WHERE id = ?',
-            [tier, id]
-        );
-
-        if (result.affectedRows === 0) {
-            return res.status(404).json({ message: 'User not found' });
-        }
-
-        await logUserAction(req, 'UPGRADE_TIER', 'users', id, { tier });
-        res.json({ message: `Profile upgraded to ${tier}` });
-    } catch (error) {
-        res.status(500).json({ message: 'Error upgrading profile', error: error.message });
-    }
-};
 
 // Buy profile enhancement upgrade
 exports.buyUpgrade = async (req, res) => {
@@ -361,13 +330,11 @@ exports.getFeaturedInstructor = async (req, res) => {
     try {
         const query = `
             SELECT u.id, u.username, u.first_name, u.last_name, u.profile_picture_url,
-                   ip.bio, ip.specialization, ip.featured_until, ip.allow_communications, ip.rating
+                   ip.bio, ip.specialization, ip.featured_until, ip.allow_communications, ip.extra_advert_slots, ip.rating
             FROM users u
             JOIN instructor_profiles ip ON u.id = ip.user_id
             WHERE ip.featured_until > NOW()
               AND u.is_verified = 1
-              AND u.tier != 'basic'
-              AND (u.tier_expires_at IS NULL OR u.tier_expires_at > NOW())
             ORDER BY ip.featured_until DESC
             LIMIT 3
         `;
@@ -413,7 +380,7 @@ exports.contactInstructor = async (req, res) => {
 
     try {
         const query = `
-            SELECT u.email, u.first_name, ip.allow_communications
+            SELECT u.email, u.first_name, ip.allow_communications, ip.extra_advert_slots
             FROM users u
             LEFT JOIN instructor_profiles ip ON u.id = ip.user_id
             WHERE u.id = ?

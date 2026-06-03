@@ -25,7 +25,7 @@ exports.createCheckoutSession = async (req, res) => {
         // 2. Determine Stripe mode and build line items
         // In a real app, you might have pre-created Stripe Product/Price IDs.
         // Here, we use ad-hoc inline prices using `price_data`.
-        const isSubscription = (item_key === 'premium_subscription' || item_key === 'shop_advert');
+        const isSubscription = (item_key === 'shop_advert');
         
         const sessionConfig = {
             payment_method_types: ['card'],
@@ -91,15 +91,9 @@ exports.webhook = async (req, res) => {
 
         try {
             // Apply the upgrade logic based on itemKey
-            if (itemKey === 'premium_subscription') {
-                const [result] = await pool.query('UPDATE users SET tier = ?, tier_expires_at = DATE_ADD(NOW(), INTERVAL 30 DAY) WHERE id = ?', ['premium', userId]);
-                if (result.affectedRows === 0) console.error(`No user found with id ${userId} to upgrade to premium`);
-                await logUserAction({ user: { userId: userId }, ip: 'stripe', headers: {}, socket: { remoteAddress: 'stripe' } }, 'UPGRADE_TIER', 'users', userId, { tier: 'premium' });
-            } 
-            else if (itemKey === 'summer_pass') {
-                const [result] = await pool.query('UPDATE users SET tier = ?, tier_expires_at = STR_TO_DATE(CONCAT(YEAR(NOW()), \'-09-30 23:59:59\'), \'%Y-%m-%d %H:%i:%s\') WHERE id = ?', ['summer_pass', userId]);
-                if (result.affectedRows === 0) console.error(`No user found with id ${userId} to upgrade to summer_pass`);
-                await logUserAction({ user: { userId: userId }, ip: 'stripe', headers: {}, socket: { remoteAddress: 'stripe' } }, 'UPGRADE_TIER', 'users', userId, { tier: 'summer_pass' });
+            if (itemKey === 'buy_advert_slot') {
+                await pool.query('UPDATE instructor_profiles SET extra_advert_slots = extra_advert_slots + 1 WHERE user_id = ?', [userId]);
+                await logUserAction({ user: { id: userId }, ip: 'stripe', headers: {}, socket: { remoteAddress: 'stripe' } }, 'BUY_ADVERT_SLOT', 'instructor_profiles', userId);
             }
             else if (itemKey === 'video_upgrade') {
                 await pool.query('UPDATE instructor_profiles SET has_video_upgrade = TRUE WHERE user_id = ?', [userId]);
