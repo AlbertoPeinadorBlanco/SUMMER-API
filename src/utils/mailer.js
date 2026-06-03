@@ -199,10 +199,41 @@ async function sendSupportEmail(name, email, subject, message) {
     return data;
 }
 
+// ─────────────────────────────────────────────────
+// Email: Rating Request
+// ─────────────────────────────────────────────────
+async function sendRatingRequestEmail(toEmail, userName, instructorName, bookingId) {
+    const rateLink = `${FRONTEND_URL}/rate/${bookingId}`;
+
+    const { data, error } = await resend.emails.send({
+        from: FROM,
+        to: toEmail,
+        subject: `⭐️ How was your class with ${instructorName}? — Summer Marketplace`,
+        html: wrapEmail(`
+            <div class="badge">Rate Your Experience</div>
+            <p>Hi <strong>${userName}</strong>,</p>
+            <p>We hope you enjoyed your recent class with <strong>${instructorName}</strong>!</p>
+            <p>To help other students and support our instructors, please take a moment to rate your experience and leave a brief review.</p>
+            <div class="cta">
+                <a href="${rateLink}" class="btn">Rate Instructor</a>
+            </div>
+            <p class="link-fallback">Or paste this link in your browser:<br/><a href="${rateLink}">${rateLink}</a></p>
+        `)
+    });
+
+    if (error) {
+        console.error('[MAILER] Failed to send rating request email:', error);
+        throw new Error(error.message);
+    }
+    console.log('[MAILER] Rating request email sent. ID:', data?.id);
+    return data;
+}
+
 module.exports = {
     sendVerificationEmail,
     sendPasswordResetEmail,
     sendDirectMessageEmail,
     sendSystemNotificationEmail,
-    sendSupportEmail
+    sendSupportEmail,
+    sendRatingRequestEmail
 };

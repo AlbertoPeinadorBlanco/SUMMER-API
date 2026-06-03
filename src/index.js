@@ -25,6 +25,7 @@ const contactRoutes = require('./routes/contactRoutes');
 const sitemapController = require('./controllers/sitemapController');
 const trafficLogger = require('./middleware/trafficLogger');
 const startSubscriptionReminders = require('./cron/subscriptionReminders');
+const startRatingReminders = require('./cron/ratingReminders');
 const pool = require('./config/db');
 
 // Run migration on startup
@@ -32,8 +33,31 @@ pool.query('ALTER TABLE classes ADD COLUMN sport_type VARCHAR(20) NULL DEFAULT "
   .then(() => console.log('Added sport_type to classes'))
   .catch(e => console.log('sport_type migration:', e.message));
 
+pool.query('ALTER TABLE bookings ADD COLUMN rating_email_sent BOOLEAN DEFAULT FALSE')
+  .then(() => console.log('Added rating_email_sent to bookings'))
+  .catch(e => console.log('rating_email_sent migration:', e.message));
+
+const createRatingsTableQuery = `
+CREATE TABLE IF NOT EXISTS instructor_ratings (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  instructor_id INT(10) UNSIGNED NOT NULL,
+  student_id INT(10) UNSIGNED NOT NULL,
+  booking_id INT(10) UNSIGNED NOT NULL,
+  rating INT NOT NULL CHECK (rating >= 1 AND rating <= 5),
+  comment TEXT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (instructor_id) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY (student_id) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY (booking_id) REFERENCES bookings(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+`;
+pool.query(createRatingsTableQuery)
+  .then(() => console.log('instructor_ratings table ready'))
+  .catch(e => console.log('instructor_ratings migration:', e.message));
+
 // Start cron jobs
 startSubscriptionReminders();
+startRatingReminders();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -104,6 +128,7 @@ app.use('/api/banners', bannersRoutes);
 app.use('/api/stripe', stripeRoutes);
 app.use('/api/weather', weatherRoutes);
 app.use('/api/contact', contactRoutes);
+app.use('/api/ratings', require('./routes/ratingsRoutes'));
 
 // Base route
 app.get('/', (req, res) => {
