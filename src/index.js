@@ -40,6 +40,10 @@ pool.query('ALTER TABLE instructor_profiles ADD COLUMN extra_advert_slots INT DE
   .then(() => console.log('Added extra_advert_slots to instructor_profiles'))
   .catch(e => console.log('extra_advert_slots migration:', e.message));
 
+pool.query('ALTER TABLE classes ADD COLUMN stripe_subscription_id VARCHAR(255) NULL')
+  .then(() => console.log('Added stripe_subscription_id to classes'))
+  .catch(e => console.log('stripe_subscription_id migration:', e.message));
+
 pool.query('ALTER TABLE users DROP COLUMN tier')
   .then(() => console.log('Dropped tier from users'))
   .catch(e => console.log('tier drop migration:', e.message));

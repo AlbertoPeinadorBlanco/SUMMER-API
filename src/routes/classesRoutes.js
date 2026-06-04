@@ -20,6 +20,7 @@ const upload = multer({ storage: storage });
 router.get('/', classesController.getAllClasses);
 router.post('/', authMiddleware, classValidator, classesController.createClass);
 router.get('/:id', classesController.getClassById);
+router.put('/:id/toggle-active', authMiddleware, classesController.toggleClassStatus);
 router.put('/:id', authMiddleware, classValidator, classesController.updateClass);
 router.delete('/:id', authMiddleware, classesController.deleteClass);
 router.post('/:id/picture', authMiddleware, upload.single('class_picture'), classesController.uploadPicture);

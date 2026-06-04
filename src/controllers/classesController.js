@@ -79,26 +79,55 @@ exports.createClass = async (req, res) => {
     } = req.body;
     
     try {
-        // Enforce class creation limits based on advert slots
-        const [counts] = await pool.query('SELECT COUNT(*) as count FROM classes WHERE instructor_id = ?', [instructor_id]);
-        const currentClasses = counts[0].count;
-        const [prof] = await pool.query('SELECT extra_advert_slots FROM instructor_profiles WHERE user_id = ?', [instructor_id]);
-        const extraSlots = prof.length > 0 ? prof[0].extra_advert_slots : 0;
+        // Find how many active classes the user currently has
+        const [counts] = await pool.query('SELECT COUNT(*) as count FROM classes WHERE instructor_id = ? AND is_active = 1', [instructor_id]);
+        const activeClasses = counts[0].count;
         
-        if (currentClasses >= 1 + extraSlots) {
-            return res.status(403).json({ message: 'You have reached your advert limit. Please purchase an additional advert slot.' });
-        }
+        // If they have 0 active classes, this new one is free and active. Otherwise, it defaults to inactive.
+        const is_active = activeClasses === 0 ? 1 : 0;
 
         const [result] = await pool.query(
             `INSERT INTO classes 
-            (instructor_id, class_type_id, title, description, title_es, description_es, price, capacity, duration_minutes, starts_at, ends_at, location, is_online, difficulty_level, sport_type) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [instructor_id, class_type_id, title, description, title_es || null, description_es || null, price, capacity, duration_minutes, starts_at, ends_at, location, is_online, difficulty_level || 1, sport_type || 'surf']
+            (instructor_id, class_type_id, title, description, title_es, description_es, price, capacity, duration_minutes, starts_at, ends_at, location, is_online, difficulty_level, sport_type, is_active) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [instructor_id, class_type_id, title, description, title_es || null, description_es || null, price, capacity, duration_minutes, starts_at, ends_at, location, is_online, difficulty_level || 1, sport_type || 'surf', is_active]
         );
         await logUserAction(req, 'CREATE_CLASS', 'classes', result.insertId);
-        res.status(201).json({ message: 'Class created', id: result.insertId });
+        res.status(201).json({ message: 'Class created', id: result.insertId, is_active });
     } catch (error) {
         res.status(500).json({ message: 'Error creating class', error: error.message });
+    }
+};
+
+// Toggle active status
+exports.toggleClassStatus = async (req, res) => {
+    const { id } = req.params;
+    const { is_active } = req.body;
+    const userId = req.user.userId;
+
+    try {
+        // Verify ownership
+        const [cls] = await pool.query('SELECT instructor_id, stripe_subscription_id, is_active FROM classes WHERE id = ?', [id]);
+        if (cls.length === 0) return res.status(404).json({ message: 'Class not found' });
+        if (cls[0].instructor_id !== userId) return res.status(403).json({ message: 'Not authorized' });
+
+        if (is_active) {
+            // Check limits
+            const [counts] = await pool.query('SELECT COUNT(*) as count FROM classes WHERE instructor_id = ? AND is_active = 1', [userId]);
+            const activeClasses = counts[0].count;
+            if (activeClasses >= 1 && !cls[0].stripe_subscription_id) {
+                return res.status(402).json({ 
+                    message: 'You already have 1 free active advert. Please subscribe to activate more.',
+                    requires_subscription: true 
+                });
+            }
+        }
+
+        await pool.query('UPDATE classes SET is_active = ? WHERE id = ?', [is_active ? 1 : 0, id]);
+        await logUserAction(req, 'UPDATE_CLASS_STATUS', 'classes', id, { is_active });
+        res.json({ message: 'Class status updated', is_active });
+    } catch (error) {
+        res.status(500).json({ message: 'Error updating class status', error: error.message });
     }
 };
 

@@ -25,8 +25,16 @@ exports.createCheckoutSession = async (req, res) => {
         // 2. Determine Stripe mode and build line items
         // In a real app, you might have pre-created Stripe Product/Price IDs.
         // Here, we use ad-hoc inline prices using `price_data`.
-        const isSubscription = (item_key === 'shop_advert');
+        const isSubscription = (item_key === 'buy_advert_slot');
         
+        const successUrl = item_key === 'buy_advert_slot' || item_key === 'bump_advert'
+            ? `${process.env.FRONTEND_URL || 'http://localhost:5173'}/instructor/manage-ads?success=true&item=${item_key}`
+            : `${process.env.FRONTEND_URL || 'http://localhost:5173'}/profile?success=true&item=${item_key}`;
+
+        const cancelUrl = item_key === 'buy_advert_slot' || item_key === 'bump_advert'
+            ? `${process.env.FRONTEND_URL || 'http://localhost:5173'}/instructor/manage-ads?canceled=true`
+            : `${process.env.FRONTEND_URL || 'http://localhost:5173'}/profile?canceled=true`;
+
         const sessionConfig = {
             payment_method_types: ['card'],
             mode: isSubscription ? 'subscription' : 'payment',
@@ -43,8 +51,8 @@ exports.createCheckoutSession = async (req, res) => {
                 },
             ],
             // Ensure we use the proper FRONTEND_URL
-            success_url: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/profile?success=true&item=${item_key}`,
-            cancel_url: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/profile?canceled=true`,
+            success_url: successUrl,
+            cancel_url: cancelUrl,
             metadata: {
                 userId: userId.toString(),
                 itemKey: item_key,
@@ -92,8 +100,12 @@ exports.webhook = async (req, res) => {
         try {
             // Apply the upgrade logic based on itemKey
             if (itemKey === 'buy_advert_slot') {
-                await pool.query('UPDATE instructor_profiles SET extra_advert_slots = extra_advert_slots + 1 WHERE user_id = ?', [userId]);
-                await logUserAction({ user: { id: userId }, ip: 'stripe', headers: {}, socket: { remoteAddress: 'stripe' } }, 'BUY_ADVERT_SLOT', 'instructor_profiles', userId);
+                const classId = session.metadata.classId;
+                const subscriptionId = session.subscription;
+                if (classId) {
+                    await pool.query('UPDATE classes SET is_active = 1, stripe_subscription_id = ? WHERE id = ?', [subscriptionId, classId]);
+                    await logUserAction({ user: { id: userId }, ip: 'stripe', headers: {}, socket: { remoteAddress: 'stripe' } }, 'BUY_ADVERT_SLOT', 'classes', classId);
+                }
             }
             else if (itemKey === 'video_upgrade') {
                 await pool.query('UPDATE instructor_profiles SET has_video_upgrade = TRUE WHERE user_id = ?', [userId]);
@@ -121,6 +133,16 @@ exports.webhook = async (req, res) => {
             }
         } catch (dbError) {
             console.error('Database Error fulfilling purchase:', dbError);
+        }
+    }
+
+    if (event.type === 'customer.subscription.deleted') {
+        const subscription = event.data.object;
+        try {
+            await pool.query('UPDATE classes SET is_active = 0, stripe_subscription_id = NULL WHERE stripe_subscription_id = ?', [subscription.id]);
+            console.log(`Subscription ${subscription.id} deleted. Deactivated advert.`);
+        } catch (dbError) {
+            console.error('Database Error fulfilling subscription deletion:', dbError);
         }
     }
 
