@@ -57,7 +57,7 @@ pool.query(`
   )
 `).then(() => console.log('favourite_classes table ensured'))
   .catch(e => console.log('favourite_classes error:', e.message));
-
+//test
 pool.query(`
   CREATE TABLE IF NOT EXISTS favourite_instructors (
     user_id INT UNSIGNED NOT NULL,
