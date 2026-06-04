@@ -13,12 +13,40 @@ exports.getLiveConditions = async (req, res) => {
             fetch(`https://marine-api.open-meteo.com/v1/marine?latitude=${lat}&longitude=${lon}&current=wave_height,wave_period&hourly=wave_height,wave_period&timezone=auto`)
         ]);
 
-        if (!weatherRes.ok || !marineRes.ok) {
-            throw new Error('Failed to fetch from Open-Meteo API');
-        }
+        let weatherData = null;
+        let marineJson = null;
+        let isPredicted = false;
 
-        const weatherData = await weatherRes.json();
-        const marineJson = await marineRes.json();
+        if (weatherRes.ok && marineRes.ok) {
+            weatherData = await weatherRes.json();
+            marineJson = await marineRes.json();
+            console.log(`[Weather] Successfully fetched real-time data for coords: ${lat}, ${lon}`);
+        } else {
+            console.warn(`[Weather] Open-Meteo API failed (weatherRes.ok: ${weatherRes.ok}, marineRes.ok: ${marineRes.ok}). Using predicted fallback data.`);
+            isPredicted = true;
+            // Fallback mock data if Open-Meteo is down (e.g., returning 502 Bad Gateway)
+            const seed = Math.abs(parseFloat(lat) + parseFloat(lon));
+            weatherData = {
+                current: {
+                    temperature_2m: (20 + (seed % 10)).toFixed(1),
+                    wind_speed_10m: (10 + (seed % 15)).toFixed(1),
+                    wind_direction_10m: Math.floor(seed % 360),
+                    weather_code: 0, // Clear sky
+                    visibility: 10000
+                },
+                daily: {
+                    sunrise: [new Date(new Date().setHours(7, 0, 0, 0)).toISOString()],
+                    sunset: [new Date(new Date().setHours(20, 0, 0, 0)).toISOString()],
+                    uv_index_max: [5.5]
+                }
+            };
+            marineJson = {
+                current: {
+                    wave_height: (1.0 + (seed % 2)).toFixed(1),
+                    wave_period: (6 + (seed % 5)).toFixed(1)
+                }
+            };
+        }
 
         let marineData = null;
         if (marineJson.current) {
@@ -67,7 +95,8 @@ exports.getLiveConditions = async (req, res) => {
         res.set('Cache-Control', 'no-store'); 
         res.json({
             weather: weatherData,
-            marine: marineData
+            marine: marineData,
+            is_predicted: isPredicted
         });
     } catch (error) {
         console.error('Weather API Error:', error);

@@ -28,7 +28,10 @@ exports.getAllClasses = async (req, res) => {
             query += ` WHERE u.is_verified = 1`;
         }
 
-        query += ` ORDER BY CASE WHEN ip.featured_until IS NOT NULL AND ip.featured_until > NOW() THEN 1 ELSE 2 END ASC, CASE WHEN c.bumped_at IS NOT NULL AND c.bumped_at > DATE_SUB(NOW(), INTERVAL 24 HOUR) THEN c.bumped_at ELSE '2000-01-01' END DESC, c.created_at DESC`;
+        query += ` ORDER BY CASE WHEN ip.featured_until IS NOT NULL AND ip.featured_until > NOW() THEN 1 ELSE 2 END ASC, 
+                     CASE WHEN c.bumped_at IS NOT NULL AND c.bumped_at > DATE_SUB(NOW(), INTERVAL 24 HOUR) THEN c.bumped_at ELSE '2000-01-01' END DESC, 
+                     (c.id - FLOOR(UNIX_TIMESTAMP(NOW()) / 3600)) % 1000000 DESC,
+                     c.created_at DESC`;
 
         const [rows] = await pool.query(query, params);
         if (!req.query.instructor_id) {
