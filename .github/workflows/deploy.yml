@@ -34,7 +34,10 @@ jobs:
 
             cd ~/SURFING/CODE
 
-            # Rebuild and restart only changed containers (zero-downtime rolling update)
+            # Stop existing containers to ensure a clean slate and prevent naming conflicts
+            docker compose down
+
+            # Rebuild and start containers
             docker compose pull
             docker compose up -d --build --remove-orphans
 
