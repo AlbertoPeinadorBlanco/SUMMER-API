@@ -35,7 +35,8 @@ jobs:
             cd ~/SURFING/CODE
 
             # Stop existing containers to ensure a clean slate and prevent naming conflicts
-            docker compose down
+            docker compose down || true
+            docker rm -f surfmarket_frontend surfmarket_api || true
 
             # Rebuild and start containers
             docker compose pull
