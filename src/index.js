@@ -22,6 +22,8 @@ const authRoutes = require('./routes/authRoutes');
 const stripeRoutes = require('./routes/stripeRoutes');
 const weatherRoutes = require('./routes/weatherRoutes');
 const contactRoutes = require('./routes/contactRoutes');
+const favouritesRoutes = require('./routes/favouritesRoutes');
+const blogRoutes = require('./routes/blogRoutes');
 const sitemapController = require('./controllers/sitemapController');
 const trafficLogger = require('./middleware/trafficLogger');
 const startRatingReminders = require('./cron/ratingReminders');
@@ -43,6 +45,54 @@ pool.query('ALTER TABLE instructor_profiles ADD COLUMN extra_advert_slots INT DE
 pool.query('ALTER TABLE classes ADD COLUMN stripe_subscription_id VARCHAR(255) NULL')
   .then(() => console.log('Added stripe_subscription_id to classes'))
   .catch(e => console.log('stripe_subscription_id migration:', e.message));
+
+pool.query(`
+  CREATE TABLE IF NOT EXISTS favourite_classes (
+    user_id INT UNSIGNED NOT NULL,
+    class_id INT UNSIGNED NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id, class_id),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (class_id) REFERENCES classes(id) ON DELETE CASCADE
+  )
+`).then(() => console.log('favourite_classes table ensured'))
+  .catch(e => console.log('favourite_classes error:', e.message));
+
+pool.query(`
+  CREATE TABLE IF NOT EXISTS favourite_instructors (
+    user_id INT UNSIGNED NOT NULL,
+    instructor_id INT UNSIGNED NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id, instructor_id),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (instructor_id) REFERENCES users(id) ON DELETE CASCADE
+  )
+`).then(() => console.log('favourite_instructors table ensured'))
+  .catch(e => console.log('favourite_instructors error:', e.message));
+
+pool.query(`
+  CREATE TABLE IF NOT EXISTS blog_posts (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    title VARCHAR(255) NOT NULL,
+    title_es VARCHAR(255),
+    slug VARCHAR(255) NOT NULL UNIQUE,
+    excerpt TEXT,
+    excerpt_es TEXT,
+    content LONGTEXT NOT NULL,
+    content_es LONGTEXT,
+    cover_image_url VARCHAR(255),
+    author_id INT UNSIGNED NOT NULL,
+    is_published TINYINT(1) DEFAULT 1,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (author_id) REFERENCES users(id) ON DELETE CASCADE
+  )
+`).then(() => console.log('blog_posts table ensured'))
+  .catch(e => console.log('blog_posts error:', e.message));
+
+pool.query('ALTER TABLE blog_posts ADD COLUMN title_es VARCHAR(255), ADD COLUMN excerpt_es TEXT, ADD COLUMN content_es LONGTEXT')
+  .then(() => console.log('blog_posts localization columns ensured'))
+  .catch(e => console.log('blog_posts localization columns existing or error:', e.message));
 
 pool.query('ALTER TABLE users DROP COLUMN tier')
   .then(() => console.log('Dropped tier from users'))
@@ -146,6 +196,8 @@ app.use('/api/banners', bannersRoutes);
 app.use('/api/stripe', stripeRoutes);
 app.use('/api/weather', weatherRoutes);
 app.use('/api/contact', contactRoutes);
+app.use('/api/favourites', favouritesRoutes);
+app.use('/api/blog', blogRoutes);
 app.use('/api/ratings', require('./routes/ratingsRoutes'));
 
 // Base route
@@ -170,3 +222,5 @@ if (process.env.SENTRY_DSN) {
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`Server is running on port ${PORT}`);
 });
+
+// Trigger nodemon restart
