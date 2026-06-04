@@ -37,3 +37,25 @@ exports.updatePricing = async (req, res) => {
         res.status(500).json({ message: 'Error updating pricing', error: error.message });
     }
 };
+
+// Delete a specific pricing item
+exports.deletePricing = async (req, res) => {
+    const { key } = req.params;
+
+    try {
+        const [result] = await pool.query(
+            'DELETE FROM platform_pricings WHERE item_key = ?',
+            [key]
+        );
+
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ message: 'Pricing item not found' });
+        }
+
+        await logAdminAction(req, 'DELETE', 'platform_pricings', null, { key });
+
+        res.json({ message: 'Pricing deleted successfully' });
+    } catch (error) {
+        res.status(500).json({ message: 'Error deleting pricing', error: error.message });
+    }
+};

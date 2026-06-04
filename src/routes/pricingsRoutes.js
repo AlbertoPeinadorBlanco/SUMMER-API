@@ -10,4 +10,7 @@ router.get('/', pricingsController.getAllPricings);
 // Admin route to update prices
 router.put('/admin/:key', authMiddleware, adminMiddleware, pricingsController.updatePricing);
 
+// Admin route to delete prices
+router.delete('/admin/:key', authMiddleware, adminMiddleware, pricingsController.deletePricing);
+
 module.exports = router;

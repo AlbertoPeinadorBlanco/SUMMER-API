@@ -70,6 +70,10 @@ pool.query(`
 `).then(() => console.log('favourite_instructors table ensured'))
   .catch(e => console.log('favourite_instructors error:', e.message));
 
+pool.query("ALTER TABLE instructor_profiles ADD COLUMN IF NOT EXISTS bumped_at DATETIME DEFAULT NULL")
+  .then(() => console.log('Added bumped_at to instructor_profiles'))
+  .catch(e => console.log('instructor_profiles bump migration:', e.message));
+
 pool.query(`
   CREATE TABLE IF NOT EXISTS blog_posts (
     id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -104,6 +108,10 @@ pool.query('ALTER TABLE users DROP COLUMN tier_expires_at')
 
 pool.query("INSERT IGNORE INTO platform_pricings (item_key, price_eur, description) VALUES ('buy_advert_slot', 10.00, 'Purchase 1 permanent extra advert slot')")
   .then(() => console.log('Added buy_advert_slot pricing'))
+  .catch(e => console.log('pricing migration:', e.message));
+
+pool.query("INSERT IGNORE INTO platform_pricings (item_key, price_eur, description) VALUES ('bump_instructor', 2.00, 'Boost Instructor Profile for 24h')")
+  .then(() => console.log('Added bump_instructor pricing'))
   .catch(e => console.log('pricing migration:', e.message));
 
 const createRatingsTableQuery = `

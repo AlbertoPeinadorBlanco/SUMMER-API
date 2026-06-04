@@ -23,10 +23,14 @@ exports.getSitemapData = async (req, res) => {
             WHERE r.name = 'instructor'
         `);
 
+        // Fetch all blog posts
+        const [blogPosts] = await pool.query('SELECT slug, updated_at FROM blog_posts WHERE is_published = TRUE');
+
         // You could add adverts / shops as well if they have public pages
         const responseData = {
             classes: classes.map(c => ({ id: c.id, lastmod: c.created_at })),
-            instructors: instructors.map(i => ({ id: i.id, lastmod: i.updated_at }))
+            instructors: instructors.map(i => ({ id: i.id, lastmod: i.updated_at })),
+            blog_posts: blogPosts.map(bp => ({ slug: bp.slug, lastmod: bp.updated_at }))
         };
         
         sitemapCache.set('sitemap_data', responseData);

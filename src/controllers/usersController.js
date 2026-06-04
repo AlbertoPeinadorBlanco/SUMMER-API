@@ -13,7 +13,7 @@ exports.getAllUsers = async (req, res) => {
             SELECT u.id, u.username, u.email, u.first_name, u.last_name, u.phone, u.is_active, u.is_verified, u.created_at, u.updated_at, u.profile_picture_url,
                    r.name as role, ip.bio, ip.specialization, ip.rating,
                    ip.has_video_upgrade, ip.has_link_upgrade, ip.has_badge_upgrade, ip.video_url, ip.booking_link, ip.available_today,
-                   ip.featured_until, ip.allow_communications, ip.extra_advert_slots
+                   ip.featured_until, ip.allow_communications, ip.extra_advert_slots, ip.bumped_at
             FROM users u
             LEFT JOIN user_roles ur ON u.id = ur.user_id
             LEFT JOIN roles r ON ur.role_id = r.id
@@ -29,6 +29,12 @@ exports.getAllUsers = async (req, res) => {
             if (req.query.role === 'instructor') {
                 query += ` AND u.is_verified = 1`;
             }
+        }
+
+        if (req.query.role === 'instructor') {
+            query += ` ORDER BY CASE WHEN ip.featured_until IS NOT NULL AND ip.featured_until > NOW() THEN 1 ELSE 2 END ASC, 
+                       CASE WHEN ip.bumped_at IS NOT NULL AND ip.bumped_at > DATE_SUB(NOW(), INTERVAL 24 HOUR) THEN ip.bumped_at ELSE '2000-01-01' END DESC, 
+                       u.created_at DESC`;
         }
 
         const [rows] = await pool.query(query, params);
@@ -47,7 +53,7 @@ exports.getUserById = async (req, res) => {
             SELECT u.id, u.username, u.email, u.first_name, u.last_name, u.phone, u.is_active, u.is_verified, u.created_at, u.updated_at, u.profile_picture_url,
                    r.name as role, ip.bio, ip.specialization, ip.rating,
                    ip.has_video_upgrade, ip.has_link_upgrade, ip.has_badge_upgrade, ip.video_url, ip.booking_link, ip.available_today,
-                   ip.featured_until, ip.allow_communications, ip.extra_advert_slots
+                   ip.featured_until, ip.allow_communications, ip.extra_advert_slots, ip.bumped_at
             FROM users u
             LEFT JOIN user_roles ur ON u.id = ur.user_id
             LEFT JOIN roles r ON ur.role_id = r.id

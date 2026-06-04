@@ -131,6 +131,10 @@ exports.webhook = async (req, res) => {
                     await logUserAction({ user: { id: userId }, ip: 'stripe', headers: {}, socket: { remoteAddress: 'stripe' } }, 'BUMP_ADVERT', 'classes', classId);
                 }
             }
+            else if (itemKey === 'bump_instructor') {
+                await pool.query('UPDATE instructor_profiles SET bumped_at = NOW() WHERE user_id = ?', [userId]);
+                await logUserAction({ user: { id: userId }, ip: 'stripe', headers: {}, socket: { remoteAddress: 'stripe' } }, 'BUMP_INSTRUCTOR', 'instructor_profiles', userId);
+            }
         } catch (dbError) {
             console.error('Database Error fulfilling purchase:', dbError);
         }
