@@ -36,6 +36,22 @@ pool.query('ALTER TABLE bookings ADD COLUMN rating_email_sent BOOLEAN DEFAULT FA
   .then(() => console.log('Added rating_email_sent to bookings'))
   .catch(e => console.log('rating_email_sent migration:', e.message));
 
+pool.query('ALTER TABLE instructor_profiles ADD COLUMN extra_advert_slots INT DEFAULT 0')
+  .then(() => console.log('Added extra_advert_slots to instructor_profiles'))
+  .catch(e => console.log('extra_advert_slots migration:', e.message));
+
+pool.query('ALTER TABLE users DROP COLUMN tier')
+  .then(() => console.log('Dropped tier from users'))
+  .catch(e => console.log('tier drop migration:', e.message));
+
+pool.query('ALTER TABLE users DROP COLUMN tier_expires_at')
+  .then(() => console.log('Dropped tier_expires_at from users'))
+  .catch(e => console.log('tier_expires_at drop migration:', e.message));
+
+pool.query("INSERT IGNORE INTO platform_pricings (item_key, price_eur, description) VALUES ('buy_advert_slot', 10.00, 'Purchase 1 permanent extra advert slot')")
+  .then(() => console.log('Added buy_advert_slot pricing'))
+  .catch(e => console.log('pricing migration:', e.message));
+
 const createRatingsTableQuery = `
 CREATE TABLE IF NOT EXISTS instructor_ratings (
   id INT AUTO_INCREMENT PRIMARY KEY,
