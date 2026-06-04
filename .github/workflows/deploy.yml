@@ -34,13 +34,15 @@ jobs:
 
             cd ~/SURFING/CODE
 
-            # Stop existing containers to ensure a clean slate and prevent naming conflicts
+            # Stop existing containers properly via compose to preserve state logic
             docker compose down --remove-orphans || true
-            docker rm -f surfmarket_frontend surfmarket_api || true
+
+            # If there are still stuck containers taking up the names, forcefully kill them
+            docker rm -f surfmarket_frontend surfmarket_api surfmarket_db surfmarket_nginx || true
 
             # Rebuild and start containers
             docker compose pull
-            docker compose up -d --build --force-recreate --remove-orphans
+            docker compose up -d --build --remove-orphans
 
             # Restart Nginx to flush old Docker IP addresses and prevent 502 Bad Gateway
             docker compose restart nginx
