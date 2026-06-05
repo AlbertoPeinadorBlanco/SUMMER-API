@@ -211,7 +211,7 @@ exports.logoutUser = async (req, res) => {
 // Update user profile (excluding username and email)
 exports.updateUser = async (req, res) => {
     const { id } = req.params;
-    const { first_name, last_name, phone } = req.body;
+    const { first_name, last_name, phone, avatar_color } = req.body;
     
     // Ensure the logged-in user is updating their own profile
     if (req.user.userId !== parseInt(id)) {
@@ -220,8 +220,8 @@ exports.updateUser = async (req, res) => {
 
     try {
         const [result] = await pool.query(
-            'UPDATE users SET first_name = ?, last_name = ?, phone = ? WHERE id = ?',
-            [first_name, last_name, phone, id]
+            'UPDATE users SET first_name = ?, last_name = ?, phone = ?, avatar_color = COALESCE(?, avatar_color) WHERE id = ?',
+            [first_name, last_name, phone, avatar_color, id]
         );
 
         if (result.affectedRows === 0) {
@@ -232,6 +232,31 @@ exports.updateUser = async (req, res) => {
         res.json({ message: 'Profile updated successfully' });
     } catch (error) {
         res.status(500).json({ message: 'Error updating profile', error: error.message });
+    }
+};
+
+// Delete user profile picture
+exports.deletePicture = async (req, res) => {
+    const { id } = req.params;
+
+    if (req.user.userId !== parseInt(id)) {
+        return res.status(403).json({ message: 'Not authorized' });
+    }
+
+    try {
+        const [result] = await pool.query(
+            'UPDATE users SET profile_picture_url = NULL WHERE id = ?',
+            [id]
+        );
+
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+
+        await logUserAction(req, 'DELETE_PICTURE', 'users', id);
+        res.json({ message: 'Profile picture deleted successfully' });
+    } catch (error) {
+        res.status(500).json({ message: 'Error deleting picture', error: error.message });
     }
 };
 

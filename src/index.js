@@ -42,6 +42,10 @@ pool.query('ALTER TABLE instructor_profiles ADD COLUMN extra_advert_slots INT DE
   .then(() => console.log('Added extra_advert_slots to instructor_profiles'))
   .catch(e => console.log('extra_advert_slots migration:', e.message));
 
+pool.query('ALTER TABLE users ADD COLUMN avatar_color VARCHAR(7) DEFAULT "random"')
+  .then(() => console.log('Added avatar_color to users'))
+  .catch(e => console.log('avatar_color migration:', e.message));
+
 pool.query('ALTER TABLE classes ADD COLUMN stripe_subscription_id VARCHAR(255) NULL')
   .then(() => console.log('Added stripe_subscription_id to classes'))
   .catch(e => console.log('stripe_subscription_id migration:', e.message));

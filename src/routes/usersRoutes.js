@@ -16,6 +16,7 @@ router.get('/featured', usersController.getFeaturedInstructor);
 router.get('/:id', usersController.getUserById);
 router.put('/:id', auth, updateProfileValidator, usersController.updateUser);
 router.post('/:id/picture', auth, upload.single('profile_picture'), optimizeImage('profiles', 800), usersController.uploadPicture);
+router.delete('/:id/picture', auth, usersController.deletePicture);
 router.post('/:id/upgrades/:type', auth, usersController.buyUpgrade);
 router.post('/:id/feature', auth, usersController.buyFeaturedSpot);
 router.put('/:id/instructor-profile', auth, usersController.updateInstructorProfile);

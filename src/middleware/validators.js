@@ -38,6 +38,7 @@ const updateProfileValidator = [
     body('first_name').optional().trim().matches(/^[A-Za-z\s]+$/).withMessage('First name must contain only letters'),
     body('last_name').optional().trim().matches(/^[A-Za-z\s]+$/).withMessage('Last name must contain only letters'),
     body('phone').optional({ checkFalsy: true }).isMobilePhone().withMessage('Must be a valid phone number'),
+    body('avatar_color').optional().trim().isHexColor().withMessage('Avatar color must be a valid hex color'),
     validateRequest
 ];
 
