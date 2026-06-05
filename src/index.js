@@ -24,6 +24,8 @@ const weatherRoutes = require('./routes/weatherRoutes');
 const contactRoutes = require('./routes/contactRoutes');
 const favouritesRoutes = require('./routes/favouritesRoutes');
 const blogRoutes = require('./routes/blogRoutes');
+const accommodationsRoutes = require('./routes/accommodationsRoutes');
+const beachesRoutes = require('./routes/beachesRoutes');
 const sitemapController = require('./controllers/sitemapController');
 const trafficLogger = require('./middleware/trafficLogger');
 const startRatingReminders = require('./cron/ratingReminders');
@@ -140,6 +142,68 @@ pool.query(createRatingsTableQuery)
   .then(() => console.log('instructor_ratings table ready'))
   .catch(e => console.log('instructor_ratings migration:', e.message));
 
+const createAccommodationsTableQuery = `
+CREATE TABLE IF NOT EXISTS accommodations (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(255) NOT NULL,
+  type VARCHAR(50) NOT NULL,
+  location VARCHAR(255) NOT NULL,
+  image_url VARCHAR(255),
+  description_en TEXT,
+  description_es TEXT,
+  link VARCHAR(255),
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+`;
+pool.query(createAccommodationsTableQuery)
+  .then(async () => {
+      console.log('accommodations table ready');
+      const [rows] = await pool.query('SELECT COUNT(*) as count FROM accommodations');
+      if (rows[0].count === 0) {
+          // seed 6 accommodations
+          await pool.query(`INSERT INTO accommodations (name, type, location, image_url, description_en, description_es, link) VALUES 
+          ('Surf House Salinas', 'type_surfhouse', 'Salinas, Asturias', 'https://images.unsplash.com/photo-1499793983690-e29da59ef1c2?w=800&q=80', 'The ultimate surf house located right in front of the famous Salinas break.', 'La mejor surf house ubicada justo en frente de la famosa ola de Salinas.', 'https://example.com'),
+          ('Camping Los Cantiles', 'type_camping', 'Luarca, Asturias', 'https://images.unsplash.com/photo-1523987355523-c7b5b0dd90a7?w=800&q=80', 'A beautiful clifftop camping with spectacular views over the ocean.', 'Un hermoso camping en la cima de un acantilado con vistas espectaculares sobre el océano.', 'https://example.com'),
+          ('Gijón Surf Hostel', 'type_hostel', 'Gijón, Asturias', 'https://images.unsplash.com/photo-1555854877-bab0e564b8d5?w=800&q=80', 'Modern and affordable hostel just 5 minutes walk from San Lorenzo beach.', 'Hostal moderno y asequible a solo 5 minutos a pie de la playa de San Lorenzo.', 'https://example.com'),
+          ('Rodiles Surf Camp', 'type_camping', 'Villaviciosa, Asturias', 'https://images.unsplash.com/photo-1537565266751-34afc0f16fb5?w=800&q=80', 'Camping nestled in the pine forest next to Rodiles beach.', 'Camping enclavado en el pinar junto a la playa de Rodiles.', 'https://example.com'),
+          ('Llanes Surf House', 'type_surfhouse', 'Llanes, Asturias', 'https://images.unsplash.com/photo-1510798831971-661eb04b3739?w=800&q=80', 'A cozy surf house near some of the most beautiful coves in Eastern Asturias.', 'Una acogedora surf house cerca de algunas de las calas más hermosas del oriente de Asturias.', 'https://example.com'),
+          ('Ribadesella Hostel', 'type_hostel', 'Ribadesella, Asturias', 'https://images.unsplash.com/photo-1566782522770-4ccb191a0c4f?w=800&q=80', 'Comfortable hostel close to Santa Marina beach, perfect for surf trips.', 'Cómodo hostal cerca de la playa de Santa Marina, perfecto para viajes de surf.', 'https://example.com')
+          `);
+      }
+  })
+  .catch(e => console.log('accommodations migration:', e.message));
+
+const createBeachesTableQuery = `
+CREATE TABLE IF NOT EXISTS beaches (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(255) NOT NULL,
+  location VARCHAR(255) NOT NULL,
+  map_link VARCHAR(255),
+  image_url VARCHAR(255),
+  level VARCHAR(50),
+  description_en TEXT,
+  description_es TEXT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+`;
+pool.query(createBeachesTableQuery)
+  .then(async () => {
+      console.log('beaches table ready');
+      const [rows] = await pool.query('SELECT COUNT(*) as count FROM beaches');
+      if (rows[0].count === 0) {
+          // seed 6 beaches
+          await pool.query(`INSERT INTO beaches (name, location, map_link, image_url, level, description_en, description_es) VALUES 
+          ('Playa de Salinas', 'Castrillón, Asturias', 'https://maps.google.com/?q=Playa+de+Salinas+Asturias', 'https://images.unsplash.com/photo-1502680390469-be75c86b636f?w=800&q=80', 'All Levels', 'One of the most famous and consistent surf spots in Asturias.', 'Uno de los spots de surf más famosos y consistentes de Asturias.'),
+          ('Rodiles', 'Villaviciosa, Asturias', 'https://maps.google.com/?q=Rodiles+Asturias', 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=800&q=80', 'Advanced', 'Famous for its fast, hollow left-hander at the river mouth.', 'Famosa por su rápida y hueca izquierda en la desembocadura de la ría.'),
+          ('San Lorenzo', 'Gijón, Asturias', 'https://maps.google.com/?q=Playa+de+San+Lorenzo+Gijon', 'https://images.unsplash.com/photo-1520116468816-95b69f847357?w=800&q=80', 'Beginner / Intermediate', 'An urban beach located right in the heart of Gijón.', 'Una playa urbana situada en el corazón de Gijón.'),
+          ('Xagó', 'Gozón, Asturias', 'https://maps.google.com/?q=Playa+de+Xago', 'https://images.unsplash.com/photo-1518005020951-eccb494ad742?w=800&q=80', 'Intermediate / Advanced', 'A very exposed beach with consistent waves, often windy.', 'Una playa muy expuesta con olas consistentes, a menudo ventosa.'),
+          ('Santa Marina', 'Ribadesella, Asturias', 'https://maps.google.com/?q=Playa+de+Santa+Marina', 'https://images.unsplash.com/photo-1505228395891-9a51e7e86bf6?w=800&q=80', 'All Levels', 'A long sandy beach at the mouth of the Sella river.', 'Una larga playa de arena en la desembocadura del río Sella.'),
+          ('San Martín', 'Llanes, Asturias', 'https://maps.google.com/?q=Playa+de+San+Martin', 'https://images.unsplash.com/photo-1516483638261-f408892caea0?w=800&q=80', 'Intermediate', 'A beautiful, somewhat isolated beach with good peaks.', 'Una hermosa playa algo aislada con buenos picos.')
+          `);
+      }
+  })
+  .catch(e => console.log('beaches migration:', e.message));
+
 // Start cron jobs
 startRatingReminders();
 
@@ -214,6 +278,8 @@ app.use('/api/weather', weatherRoutes);
 app.use('/api/contact', contactRoutes);
 app.use('/api/favourites', favouritesRoutes);
 app.use('/api/blog', blogRoutes);
+app.use('/api/accommodations', accommodationsRoutes);
+app.use('/api/beaches', beachesRoutes);
 app.use('/api/ratings', require('./routes/ratingsRoutes'));
 
 // Base route
