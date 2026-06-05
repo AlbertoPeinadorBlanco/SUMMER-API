@@ -1,4 +1,5 @@
 const pool = require('../config/db');
+const sitemapController = require('./sitemapController');
 
 // Helper to generate a slug from a title
 const generateSlug = (title) => {
@@ -82,6 +83,7 @@ exports.createPost = async (req, res) => {
             [title, title_es || null, slug, excerpt, excerpt_es || null, content, content_es || null, cover_image_url, author_id, is_published ? 1 : 0]
         );
 
+        sitemapController.clearSitemapCache();
         res.status(201).json({ message: 'Blog post created successfully', id: result.insertId, slug });
     } catch (error) {
         res.status(500).json({ message: 'Error creating blog post', error: error.message });
@@ -114,6 +116,7 @@ exports.updatePost = async (req, res) => {
             [title, title_es || null, slug, excerpt, excerpt_es || null, content, content_es || null, cover_image_url, is_published ? 1 : 0, id]
         );
 
+        sitemapController.clearSitemapCache();
         res.json({ message: 'Blog post updated successfully', slug });
     } catch (error) {
         res.status(500).json({ message: 'Error updating blog post', error: error.message });
@@ -129,6 +132,7 @@ exports.deletePost = async (req, res) => {
 
     try {
         await pool.query('DELETE FROM blog_posts WHERE id = ?', [id]);
+        sitemapController.clearSitemapCache();
         res.json({ message: 'Blog post deleted successfully' });
     } catch (error) {
         res.status(500).json({ message: 'Error deleting blog post', error: error.message });

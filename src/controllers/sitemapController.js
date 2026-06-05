@@ -2,6 +2,10 @@ const pool = require('../config/db');
 const NodeCache = require('node-cache');
 const sitemapCache = new NodeCache({ stdTTL: 3600 }); // 1 hour cache
 
+exports.clearSitemapCache = () => {
+    sitemapCache.del('sitemap_data');
+};
+
 // Get all dynamic data needed for the sitemap
 exports.getSitemapData = async (req, res) => {
     try {
