@@ -17,4 +17,7 @@ router.post('/verify-email', authController.verifyEmail);
 // POST /api/auth/resend-verification
 router.post('/resend-verification', authController.resendVerification);
 
+// POST /api/auth/google
+router.post('/google', authController.googleAuth);
+
 module.exports = router;

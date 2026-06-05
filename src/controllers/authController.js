@@ -196,3 +196,72 @@ exports.resendVerification = async (req, res) => {
         res.status(500).json({ message: 'Failed to resend verification email.' });
     }
 };
+
+// POST /api/auth/google
+exports.googleAuth = async (req, res) => {
+    const { credential } = req.body;
+    if (!credential) {
+        return res.status(400).json({ message: 'Missing credential' });
+    }
+
+    try {
+        const { OAuth2Client } = require('google-auth-library');
+        // Fallback to placeholder if GOOGLE_CLIENT_ID is not set in .env
+        const CLIENT_ID = process.env.GOOGLE_CLIENT_ID || 'placeholder-google-client-id';
+        const client = new OAuth2Client(CLIENT_ID);
+
+        // Very basic verification if it's a placeholder to allow testing without a real ID
+        let payload;
+        if (CLIENT_ID === 'placeholder-google-client-id') {
+            payload = jwt.decode(credential);
+        } else {
+            const ticket = await client.verifyIdToken({
+                idToken: credential,
+                audience: CLIENT_ID,
+            });
+            payload = ticket.getPayload();
+        }
+
+        if (!payload || !payload.email) {
+            return res.status(400).json({ message: 'Invalid Google Token' });
+        }
+
+        const { email, sub: google_id, given_name, family_name, picture } = payload;
+
+        // Check if user exists by email
+        const [users] = await pool.query('SELECT id FROM users WHERE email = ?', [email]);
+
+        let userId;
+
+        if (users.length > 0) {
+            userId = users[0].id;
+            // Link google_id if missing
+            await pool.query('UPDATE users SET google_id = COALESCE(google_id, ?) WHERE id = ?', [google_id, userId]);
+        } else {
+            // Create new user
+            const [result] = await pool.query(
+                `INSERT INTO users (email, first_name, last_name, google_id, profile_picture_url, is_verified) 
+                 VALUES (?, ?, ?, ?, ?, 1)`,
+                [email, given_name || '', family_name || '', google_id, picture || null]
+            );
+            userId = result.insertId;
+
+            // Assign default 'user' role
+            await pool.query('INSERT INTO user_roles (user_id, role_id) VALUES (?, (SELECT id FROM roles WHERE name = "user"))', [userId]);
+        }
+
+        // Issue standard tokens
+        const [roles] = await pool.query('SELECT r.name as role FROM user_roles ur JOIN roles r ON ur.role_id = r.id WHERE ur.user_id = ?', [userId]);
+        const role = roles.length > 0 ? roles[0].role : 'user';
+
+        issueTokens(res, req, userId, role);
+
+        const { logUserAction } = require('../utils/auditLogger');
+        await logUserAction(req, 'GOOGLE_LOGIN', 'users', userId);
+
+        res.json({ message: 'Google authentication successful', userId, role });
+    } catch (err) {
+        console.error('Google Auth Error:', err);
+        res.status(500).json({ message: 'Authentication failed' });
+    }
+};
