@@ -23,6 +23,10 @@ jobs:
           script: |
             set -e
 
+            # Use flock to prevent race conditions if both API and Frontend workflows run simultaneously
+            exec 200>/tmp/surfmarket_deploy.lock
+            flock -n 200 || { echo "Another deployment is running. Waiting..."; flock 200; }
+
             cd ~/SURFING/CODE
 
             # Pull latest code
@@ -34,13 +38,7 @@ jobs:
 
             cd ~/SURFING/CODE
 
-            # Stop existing containers properly via compose to preserve state logic
-            docker compose down --remove-orphans || true
-
-            # If there are still stuck containers taking up the names, forcefully kill them
-            docker rm -f surfmarket_frontend surfmarket_api surfmarket_db surfmarket_nginx || true
-
-            # Rebuild and start containers
+            # Rebuild and restart only changed containers (zero-downtime rolling update)
             docker compose pull
             docker compose up -d --build --remove-orphans
 
