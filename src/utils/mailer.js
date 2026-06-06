@@ -2,7 +2,7 @@ const { Resend } = require('resend');
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
-const FROM = `${process.env.FROM_NAME || 'Summer Marketplace'} <${process.env.FROM_EMAIL || 'onboarding@resend.dev'}>`;
+const FROM = `${process.env.FROM_NAME || 'Surf-Market.net'} <${process.env.FROM_EMAIL || 'onboarding@resend.dev'}>`;
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
 
 // ─────────────────────────────────────────────────
@@ -34,13 +34,13 @@ function wrapEmail(content) {
     <body>
       <div class="container">
         <div class="header">
-          <h1>🏄 Summer Marketplace</h1>
+          <h1>🏄 Surf-Market.net</h1>
         </div>
         <div class="body">
           ${content}
         </div>
         <div class="footer">
-          <p>&copy; ${new Date().getFullYear()} Summer Marketplace · <a href="${FRONTEND_URL}">Visit site</a></p>
+          <p>&copy; ${new Date().getFullYear()} Surf-Market.net · <a href="${FRONTEND_URL}">Visit site</a></p>
           <p>You received this email because an action was taken on your account.</p>
         </div>
       </div>
@@ -57,10 +57,10 @@ async function sendVerificationEmail(toEmail, token) {
     const { data, error } = await resend.emails.send({
         from: FROM,
         to: toEmail,
-        subject: '✅ Verify your Email — Summer Marketplace',
+        subject: '✅ Verify your Email — Surf-Market.net',
         html: wrapEmail(`
             <div class="badge">Account Verification</div>
-            <p>Welcome aboard! 👋 Please verify your email address to unlock all features of Summer Marketplace.</p>
+            <p>Welcome aboard! 👋 Please verify your email address to unlock all features of Surf-Market.net.</p>
             <div class="cta">
                 <a href="${verifyLink}" class="btn">Verify Email Address</a>
             </div>
@@ -86,7 +86,7 @@ async function sendPasswordResetEmail(toEmail, token) {
     const { data, error } = await resend.emails.send({
         from: FROM,
         to: toEmail,
-        subject: '🔒 Reset your Password — Summer Marketplace',
+        subject: '🔒 Reset your Password — Surf-Market.net',
         html: wrapEmail(`
             <div class="badge">Password Reset</div>
             <p>We received a request to reset the password for your account.</p>
@@ -115,11 +115,11 @@ async function sendDirectMessageEmail(toEmail, instructorName, fromName, fromEma
         from: FROM,
         to: toEmail,
         replyTo: fromEmail,
-        subject: `💬 New message from ${fromName} — Summer Marketplace`,
+        subject: `💬 New message from ${fromName} — Surf-Market.net`,
         html: wrapEmail(`
             <div class="badge">New Message</div>
             <p>Hi <strong>${instructorName}</strong>,</p>
-            <p>You have a new message from a user on Summer Marketplace:</p>
+            <p>You have a new message from a user on Surf-Market.net:</p>
             <div style="background:#f8f9fa;border-left:4px solid #E26D3F;padding:16px 20px;border-radius:0 8px 8px 0;margin:20px 0;">
                 <p style="margin:0 0 8px;"><strong>From:</strong> ${fromName} (<a href="mailto:${fromEmail}">${fromEmail}</a>)</p>
                 <p style="margin:0;white-space:pre-wrap;">${message.replace(/\n/g, '<br/>')}</p>
@@ -145,11 +145,11 @@ async function sendSystemNotificationEmail(toEmail, userName, notificationType, 
     const { data, error } = await resend.emails.send({
         from: FROM,
         to: toEmail,
-        subject: `🔔 New Notification — Summer Marketplace`,
+        subject: `🔔 New Notification — Surf-Market.net`,
         html: wrapEmail(`
             <div class="badge">System Notification</div>
             <p>Hi <strong>${userName}</strong>,</p>
-            <p>You have a new notification from Summer Marketplace:</p>
+            <p>You have a new notification from Surf-Market.net:</p>
             <div style="background:#f8f9fa;border-left:4px solid #E26D3F;padding:16px 20px;border-radius:0 8px 8px 0;margin:20px 0;">
                 <p style="margin:0;white-space:pre-wrap;">${message.replace(/\n/g, '<br/>')}</p>
             </div>
@@ -178,7 +178,7 @@ async function sendSupportEmail(name, email, subject, message) {
         subject: `[Support Request] ${subject}`,
         html: wrapEmail(`
             <div class="badge">Contact Form Submission</div>
-            <p>You have received a new message from the contact form on Summer Marketplace:</p>
+            <p>You have received a new message from the contact form on Surf-Market.net:</p>
             <div style="background:#f8f9fa;border-left:4px solid #E26D3F;padding:16px 20px;border-radius:0 8px 8px 0;margin:20px 0;">
                 <p style="margin:0 0 8px;"><strong>Name:</strong> ${name}</p>
                 <p style="margin:0 0 8px;"><strong>Email:</strong> <a href="mailto:${email}">${email}</a></p>
@@ -208,7 +208,7 @@ async function sendRatingRequestEmail(toEmail, userName, instructorName, booking
     const { data, error } = await resend.emails.send({
         from: FROM,
         to: toEmail,
-        subject: `⭐️ How was your class with ${instructorName}? — Summer Marketplace`,
+        subject: `⭐️ How was your class with ${instructorName}? — Surf-Market.net`,
         html: wrapEmail(`
             <div class="badge">Rate Your Experience</div>
             <p>Hi <strong>${userName}</strong>,</p>
