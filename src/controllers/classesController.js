@@ -279,3 +279,43 @@ exports.approveClass = async (req, res) => {
         res.status(500).json({ message: 'Error approving class', error: error.message });
     }
 };
+
+exports.disapproveClass = async (req, res) => {
+    const { id } = req.params;
+    try {
+        const [rows] = await pool.query('SELECT title, instructor_id FROM classes WHERE id = ?', [id]);
+        if (rows.length === 0) return res.status(404).json({ message: 'Class not found' });
+        
+        const { title, instructor_id } = rows[0];
+
+        // Mark as rejected and inactive
+        await pool.query("UPDATE classes SET approval_status = 'rejected', is_active = 0 WHERE id = ?", [id]);
+        
+        // Notify instructor
+        await pool.query(
+            "INSERT INTO notifications (user_id, type, message) VALUES (?, ?, ?)",
+            [instructor_id, 'advert_rejected', `Your advert '${title}' has been rejected by an administrator. Please review and edit it to submit for approval again.`]
+        );
+
+        // Also fetch instructor email to send email
+        const [userRows] = await pool.query('SELECT email, first_name FROM users WHERE id = ?', [instructor_id]);
+        if (userRows.length > 0) {
+            const { sendSystemNotificationEmail } = require('../utils/mailer');
+            if (sendSystemNotificationEmail) {
+                await sendSystemNotificationEmail(
+                    userRows[0].email, 
+                    userRows[0].first_name, 
+                    'Advert Rejected', 
+                    `Unfortunately, your advert "${title}" has been rejected by our administrators. Please log in to review and edit it to meet our guidelines.`
+                );
+            }
+        }
+
+        const { logAdminAction } = require('../utils/auditLogger');
+        await logAdminAction(req, 'DISAPPROVE_CLASS', 'classes', id);
+        
+        res.json({ message: 'Class disapproved successfully' });
+    } catch (error) {
+        res.status(500).json({ message: 'Error disapproving class', error: error.message });
+    }
+};
