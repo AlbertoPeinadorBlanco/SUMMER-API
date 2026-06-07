@@ -105,11 +105,14 @@ exports.createClass = async (req, res) => {
         // If they have 0 active classes, this new one is free and active. Otherwise, it defaults to inactive.
         const is_active = activeClasses === 0 ? 1 : 0;
 
+        const formattedStartsAt = starts_at ? new Date(starts_at) : null;
+        const formattedEndsAt = ends_at ? new Date(ends_at) : null;
+
         const [result] = await pool.query(
             `INSERT INTO classes 
             (instructor_id, class_type_id, title, description, title_es, description_es, price, capacity, duration_minutes, starts_at, ends_at, location, is_online, difficulty_level, sport_type, is_active) 
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [instructor_id, class_type_id, title, description, title_es || null, description_es || null, price, capacity, duration_minutes, starts_at, ends_at, location, is_online, difficulty_level || 1, sport_type || 'surf', is_active]
+            [instructor_id, class_type_id, title, description, title_es || null, description_es || null, price, capacity, duration_minutes, formattedStartsAt, formattedEndsAt, location, is_online, difficulty_level || 1, sport_type || 'surf', is_active]
         );
         await logUserAction(req, 'CREATE_CLASS', 'classes', result.insertId);
         res.status(201).json({ message: 'Class created', id: result.insertId, is_active });
@@ -171,13 +174,16 @@ exports.updateClass = async (req, res) => {
             return res.status(403).json({ message: 'Cannot edit an advert while it is pending admin revision.' });
         }
 
+        const formattedStartsAt = starts_at ? new Date(starts_at) : null;
+        const formattedEndsAt = ends_at ? new Date(ends_at) : null;
+
         const [result] = await pool.query(
             `UPDATE classes 
              SET class_type_id = ?, title = ?, description = ?, title_es = ?, description_es = ?, price = ?, 
                  capacity = ?, duration_minutes = ?, starts_at = ?, ends_at = ?, 
                  location = ?, is_online = ?, difficulty_level = ?, sport_type = ?, approval_status = 'pending'
              WHERE id = ?`,
-            [class_type_id, title, description, title_es || null, description_es || null, price, capacity, duration_minutes, starts_at, ends_at, location, is_online, difficulty_level || 1, sport_type || 'surf', id]
+            [class_type_id, title, description, title_es || null, description_es || null, price, capacity, duration_minutes, formattedStartsAt, formattedEndsAt, location, is_online, difficulty_level || 1, sport_type || 'surf', id]
         );
 
         if (result.affectedRows === 0) {
