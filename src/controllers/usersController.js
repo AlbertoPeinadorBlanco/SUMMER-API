@@ -10,7 +10,7 @@ const { sendVerificationEmail, sendPasswordResetEmail } = require('../utils/mail
 exports.getAllUsers = async (req, res) => {
     try {
         let query = `
-            SELECT u.id, u.username, u.email, u.first_name, u.last_name, u.phone, u.is_active, u.is_verified, u.created_at, u.updated_at, u.profile_picture_url,
+            SELECT u.id, u.username, u.email, u.first_name, u.last_name, u.phone, u.is_active, u.is_verified, u.created_at, u.updated_at, u.profile_picture_url, u.avatar_color,
                    r.name as role, ip.bio, ip.specialization, ip.rating,
                    ip.has_video_upgrade, ip.has_link_upgrade, ip.has_badge_upgrade, ip.video_url, ip.booking_link, ip.available_today,
                    ip.featured_until, ip.allow_communications, ip.extra_advert_slots, ip.bumped_at
@@ -50,7 +50,7 @@ exports.getUserById = async (req, res) => {
     const { id } = req.params;
     try {
         const query = `
-            SELECT u.id, u.username, u.email, u.first_name, u.last_name, u.phone, u.is_active, u.is_verified, u.created_at, u.updated_at, u.profile_picture_url,
+            SELECT u.id, u.username, u.email, u.first_name, u.last_name, u.phone, u.is_active, u.is_verified, u.created_at, u.updated_at, u.profile_picture_url, u.avatar_color,
                    r.name as role, ip.bio, ip.specialization, ip.rating,
                    ip.has_video_upgrade, ip.has_link_upgrade, ip.has_badge_upgrade, ip.video_url, ip.booking_link, ip.available_today,
                    ip.featured_until, ip.allow_communications, ip.extra_advert_slots, ip.bumped_at

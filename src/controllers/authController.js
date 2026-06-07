@@ -54,7 +54,7 @@ exports.getMe = async (req, res) => {
 
         const [rows] = await pool.query(`
             SELECT u.id, u.username, u.email, u.first_name, u.last_name, u.phone,
-                   u.profile_picture_url, u.is_active, u.is_verified,
+                   u.profile_picture_url, u.is_active, u.is_verified, u.avatar_color,
                    r.name as role,
                    ip.has_video_upgrade, ip.has_link_upgrade, ip.has_badge_upgrade,
                    ip.video_url, ip.booking_link, ip.available_today,
