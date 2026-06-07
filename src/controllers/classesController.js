@@ -90,9 +90,12 @@ exports.getClassById = async (req, res) => {
 // Create a new class
 exports.createClass = async (req, res) => {
     const { 
-        instructor_id, class_type_id, title, description, title_es, description_es, price, 
+        class_type_id, title, description, title_es, description_es, price, 
         capacity, duration_minutes, starts_at, ends_at, location, is_online, difficulty_level, sport_type
     } = req.body;
+    
+    const instructor_id = req.user.userId;
+    
     
     try {
         // Find how many active classes the user currently has
@@ -111,6 +114,7 @@ exports.createClass = async (req, res) => {
         await logUserAction(req, 'CREATE_CLASS', 'classes', result.insertId);
         res.status(201).json({ message: 'Class created', id: result.insertId, is_active });
     } catch (error) {
+        console.error('Error creating class:', error);
         res.status(500).json({ message: 'Error creating class', error: error.message });
     }
 };
@@ -156,8 +160,12 @@ exports.updateClass = async (req, res) => {
     } = req.body;
     
     try {
-        const [existing] = await pool.query('SELECT approval_status FROM classes WHERE id = ?', [id]);
+        const [existing] = await pool.query('SELECT instructor_id, approval_status FROM classes WHERE id = ?', [id]);
         if (existing.length === 0) return res.status(404).json({ message: 'Class not found' });
+        
+        if (existing[0].instructor_id !== req.user.userId && req.user.role !== 'admin') {
+            return res.status(403).json({ message: 'Not authorized to edit this advert' });
+        }
         
         if (existing[0].approval_status === 'pending') {
             return res.status(403).json({ message: 'Cannot edit an advert while it is pending admin revision.' });
