@@ -159,6 +159,22 @@ exports.createUser = async (req, res) => {
     }
 };
 
+// Get currently featured instructors
+exports.getFeaturedUsers = async (req, res) => {
+    try {
+        const [users] = await pool.query(
+            `SELECT u.id, u.username, u.email, u.first_name, u.last_name, ip.featured_until
+             FROM users u
+             JOIN instructor_profiles ip ON u.id = ip.user_id
+             WHERE ip.featured_until > NOW()
+             ORDER BY ip.featured_until ASC`
+        );
+        res.json(users);
+    } catch (error) {
+        res.status(500).json({ message: 'Error fetching featured users', error: error.message });
+    }
+};
+
 // Update an existing user as Admin
 exports.updateUser = async (req, res) => {
     const { id } = req.params;
@@ -207,6 +223,41 @@ exports.updateUser = async (req, res) => {
     }
 };
 
+// Update instructor perks
+exports.updateInstructorPerks = async (req, res) => {
+    const { id } = req.params;
+    const { has_video_upgrade, has_link_upgrade, has_badge_upgrade, featured_until, bump_instructor } = req.body;
+    
+    try {
+        let query = `UPDATE instructor_profiles 
+             SET has_video_upgrade = ?, has_link_upgrade = ?, has_badge_upgrade = ?, featured_until = ?`;
+        const params = [
+            has_video_upgrade ? 1 : 0, 
+            has_link_upgrade ? 1 : 0, 
+            has_badge_upgrade ? 1 : 0, 
+            featured_until ? new Date(featured_until) : null
+        ];
+
+        if (bump_instructor) {
+            query += `, bumped_at = NOW()`;
+        }
+
+        query += ` WHERE user_id = ?`;
+        params.push(id);
+
+        const [result] = await pool.query(query, params);
+
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ message: 'Instructor profile not found for this user' });
+        }
+
+        await logAdminAction(req, 'UPDATE_PERKS', 'instructor_profiles', id, { has_video_upgrade, has_link_upgrade, has_badge_upgrade, featured_until, bump_instructor });
+        res.json({ message: 'Instructor perks updated successfully' });
+    } catch (error) {
+        res.status(500).json({ message: 'Error updating perks', error: error.message });
+    }
+};
+
 // Delete an existing user
 exports.deleteUser = async (req, res) => {
     const { id } = req.params;
@@ -239,6 +290,38 @@ exports.deleteUser = async (req, res) => {
         res.status(500).json({ message: 'Error deleting user', error: error.message });
     } finally {
         connection.release();
+    }
+};
+
+// Delete an existing rating
+exports.deleteRating = async (req, res) => {
+    const { id } = req.params;
+    const connection = await pool.getConnection();
+    try {
+        const [result] = await connection.query('DELETE FROM instructor_ratings WHERE id = ?', [id]);
+        if (result.affectedRows === 0) return res.status(404).json({ message: 'Rating not found' });
+        
+        // No caching logic here because ratings are simple
+        await logAdminAction(req, 'DELETE', 'instructor_ratings', id);
+        res.json({ message: 'Rating deleted successfully' });
+    } catch (error) {
+        res.status(500).json({ message: 'Error deleting rating', error: error.message });
+    } finally {
+        connection.release();
+    }
+};
+
+// Boost a class for 24 hours
+exports.boostClassAdmin = async (req, res) => {
+    const { id } = req.params;
+    try {
+        const [result] = await pool.query('UPDATE classes SET bumped_at = NOW() WHERE id = ?', [id]);
+        if (result.affectedRows === 0) return res.status(404).json({ message: 'Class not found' });
+        
+        await logAdminAction(req, 'BUMP_ADVERT', 'classes', id);
+        res.json({ message: 'Advert boosted successfully for 24 hours' });
+    } catch (error) {
+        res.status(500).json({ message: 'Error boosting advert', error: error.message });
     }
 };
 

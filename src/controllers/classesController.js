@@ -159,31 +159,35 @@ exports.updateClass = async (req, res) => {
     const { id } = req.params;
     const { 
         class_type_id, title, description, title_es, description_es, price, 
-        capacity, duration_minutes, starts_at, ends_at, location, is_online, difficulty_level, sport_type
+        capacity, duration_minutes, starts_at, ends_at, location, is_online, difficulty_level, sport_type,
+        is_active
     } = req.body;
     
     try {
-        const [existing] = await pool.query('SELECT instructor_id, approval_status FROM classes WHERE id = ?', [id]);
+        const [existing] = await pool.query('SELECT instructor_id, approval_status, is_active FROM classes WHERE id = ?', [id]);
         if (existing.length === 0) return res.status(404).json({ message: 'Class not found' });
         
         if (existing[0].instructor_id !== req.user.userId && req.user.role !== 'admin') {
             return res.status(403).json({ message: 'Not authorized to edit this advert' });
         }
         
-        if (existing[0].approval_status === 'pending') {
+        if (existing[0].approval_status === 'pending' && req.user.role !== 'admin') {
             return res.status(403).json({ message: 'Cannot edit an advert while it is pending admin revision.' });
         }
 
         const formattedStartsAt = starts_at ? new Date(starts_at) : null;
         const formattedEndsAt = ends_at ? new Date(ends_at) : null;
 
+        const newApprovalStatus = req.user.role === 'admin' ? existing[0].approval_status : 'pending';
+        const newIsActive = (req.user.role === 'admin' && is_active !== undefined) ? is_active : existing[0].is_active;
+
         const [result] = await pool.query(
             `UPDATE classes 
              SET class_type_id = ?, title = ?, description = ?, title_es = ?, description_es = ?, price = ?, 
                  capacity = ?, duration_minutes = ?, starts_at = ?, ends_at = ?, 
-                 location = ?, is_online = ?, difficulty_level = ?, sport_type = ?, approval_status = 'pending'
+                 location = ?, is_online = ?, difficulty_level = ?, sport_type = ?, approval_status = ?, is_active = ?
              WHERE id = ?`,
-            [class_type_id, title, description, title_es || null, description_es || null, price, capacity, duration_minutes, formattedStartsAt, formattedEndsAt, location, is_online, difficulty_level || 1, sport_type || 'surf', id]
+            [class_type_id, title, description, title_es || null, description_es || null, price, capacity, duration_minutes, formattedStartsAt, formattedEndsAt, location, is_online, difficulty_level || 1, sport_type || 'surf', newApprovalStatus, newIsActive, id]
         );
 
         if (result.affectedRows === 0) {
