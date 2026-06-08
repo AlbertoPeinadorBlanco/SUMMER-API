@@ -109,7 +109,7 @@ exports.getUserDetails = async (req, res) => {
 
 // Create a new user as Admin
 exports.createUser = async (req, res) => {
-    const { username, email, password, first_name, last_name, phone, role, tier } = req.body;
+    const { username, email, password, first_name, last_name, phone, role } = req.body;
 
     if (!password || password.length < 9 || !/[a-z]/.test(password) || !/[A-Z]/.test(password) || !/[0-9]/.test(password)) {
         return res.status(400).json({ message: 'Password must be at least 9 characters long, and contain at least one lowercase letter, one uppercase letter, and one number.' });
@@ -131,8 +131,8 @@ exports.createUser = async (req, res) => {
         const password_hash = await bcrypt.hash(password, salt);
 
         const [result] = await connection.query(
-            'INSERT INTO users (username, email, password_hash, first_name, last_name, phone, tier) VALUES (?, ?, ?, ?, ?, ?, ?)',
-            [username, email, password_hash, first_name, last_name, phone || null, tier || 'basic']
+            'INSERT INTO users (username, email, password_hash, first_name, last_name, phone) VALUES (?, ?, ?, ?, ?, ?)',
+            [username, email, password_hash, first_name, last_name, phone || null]
         );
 
         const userId = result.insertId;
@@ -149,7 +149,7 @@ exports.createUser = async (req, res) => {
         }
 
         await connection.commit();
-        await logAdminAction(req, 'CREATE', 'users', userId, { role: targetRoleName, tier: tier || 'basic' });
+        await logAdminAction(req, 'CREATE', 'users', userId, { role: targetRoleName });
         res.status(201).json({ message: 'User created successfully', id: userId });
     } catch (error) {
         await connection.rollback();
@@ -162,35 +162,21 @@ exports.createUser = async (req, res) => {
 // Update an existing user as Admin
 exports.updateUser = async (req, res) => {
     const { id } = req.params;
-    const { first_name, last_name, phone, tier, role } = req.body;
+    const { first_name, last_name, phone, role } = req.body;
     
     const connection = await pool.getConnection();
 
     try {
         await connection.beginTransaction();
 
-        const [oldUserRows] = await connection.query('SELECT tier FROM users WHERE id = ?', [id]);
-        let oldTier = 'basic';
-        if (oldUserRows.length > 0) {
-            oldTier = oldUserRows[0].tier;
-        }
-
         const [result] = await connection.query(
-            'UPDATE users SET first_name = ?, last_name = ?, phone = ?, tier = ? WHERE id = ?',
-            [first_name, last_name, phone || null, tier || 'basic', id]
+            'UPDATE users SET first_name = ?, last_name = ?, phone = ? WHERE id = ?',
+            [first_name, last_name, phone || null, id]
         );
 
         if (result.affectedRows === 0) {
             await connection.rollback();
             return res.status(404).json({ message: 'User not found' });
-        }
-
-        if (tier && tier !== oldTier) {
-            const message = tier === 'premium' ? 'Your subscription has been activated!' : 'Your subscription has ended.';
-            await connection.query(
-                'INSERT INTO notifications (user_id, type, message) VALUES (?, ?, ?)',
-                [id, 'subscription_updated', message]
-            );
         }
 
         // Update role
@@ -211,7 +197,7 @@ exports.updateUser = async (req, res) => {
         }
 
         await connection.commit();
-        await logAdminAction(req, 'UPDATE', 'users', id, { role, tier });
+        await logAdminAction(req, 'UPDATE', 'users', id, { role });
         res.json({ message: 'User updated successfully' });
     } catch (error) {
         await connection.rollback();
