@@ -15,6 +15,7 @@ router.post('/users', adminController.createUser);
 router.put('/users/:id', adminController.updateUser);
 router.delete('/users/:id', adminController.deleteUser);
 router.post('/users/:id/send-verification', adminController.sendVerificationEmail);
+router.post('/users/:id/send-password-reset', adminController.sendPasswordResetEmailAdmin);
 
 router.post('/ratings', adminController.createRating);
 router.put('/ratings/:id', adminController.updateRating);

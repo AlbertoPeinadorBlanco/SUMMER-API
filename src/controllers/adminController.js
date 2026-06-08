@@ -366,3 +366,34 @@ exports.sendVerificationEmail = async (req, res) => {
         res.status(500).json({ message: 'Error sending verification email', error: error.message });
     }
 };
+
+// Send Password Reset Email from Admin panel
+exports.sendPasswordResetEmailAdmin = async (req, res) => {
+    const { id } = req.params;
+    try {
+        const [rows] = await pool.query('SELECT email FROM users WHERE id = ?', [id]);
+        if (rows.length === 0) return res.status(404).json({ message: 'User not found' });
+
+        const user = rows[0];
+        
+        const crypto = require('crypto');
+        const { sendPasswordResetEmail } = require('../utils/mailer');
+        const resetToken = crypto.randomBytes(32).toString('hex');
+        const hashedToken = crypto.createHash('sha256').update(resetToken).digest('hex');
+        
+        // Set expiration to 1 hour from now
+        const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
+
+        await pool.query(
+            'UPDATE users SET reset_token = ?, reset_token_expires = ? WHERE id = ?', 
+            [hashedToken, expiresAt, id]
+        );
+
+        await sendPasswordResetEmail(user.email, resetToken);
+        
+        await logAdminAction(req, 'UPDATE', 'users_password_reset', id);
+        res.json({ message: 'Password reset email sent successfully' });
+    } catch (error) {
+        res.status(500).json({ message: 'Error sending password reset email', error: error.message });
+    }
+};
