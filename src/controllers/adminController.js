@@ -7,7 +7,7 @@ exports.getAllUsers = async (req, res) => {
     try {
         const query = `
             SELECT u.id, u.username, u.email, u.first_name, u.last_name, u.phone, u.created_at, u.last_active_at,
-                   u.is_verified,
+                   u.is_verified, u.profile_picture_url,
                    r.name as role
             FROM users u
             LEFT JOIN user_roles ur ON u.id = ur.user_id
@@ -48,7 +48,7 @@ exports.getUserDetails = async (req, res) => {
         // Fetch core user & profile info
         const userQuery = `
             SELECT u.id, u.username, u.email, u.first_name, u.last_name, u.phone, u.created_at,
-                   u.is_verified,
+                   u.is_verified, u.profile_picture_url,
                    r.name as role, ip.bio, ip.specialization, ip.rating, ip.has_video_upgrade, 
                    ip.has_link_upgrade, ip.has_badge_upgrade, ip.video_url, ip.booking_link, ip.available_today, ip.featured_until
             FROM users u
@@ -77,7 +77,7 @@ exports.getUserDetails = async (req, res) => {
         let ratings = [];
         if (user.role === 'instructor' || user.role === 'admin') {
             const advertsQuery = `
-                SELECT id, title, price, is_active, created_at, capacity, starts_at, ends_at
+                SELECT id, title, price, is_active, created_at, capacity, starts_at, ends_at, image_url
                 FROM classes
                 WHERE instructor_id = ?
                 ORDER BY created_at DESC

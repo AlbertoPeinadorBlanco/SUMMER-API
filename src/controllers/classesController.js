@@ -226,9 +226,16 @@ exports.uploadPicture = async (req, res) => {
         return res.status(400).json({ message: 'No file uploaded' });
     }
 
-    const imageUrl = '/uploads/classes/' + req.file.filename;
-
     try {
+        const [existing] = await pool.query('SELECT instructor_id FROM classes WHERE id = ?', [id]);
+        if (existing.length === 0) return res.status(404).json({ message: 'Class not found' });
+
+        if (existing[0].instructor_id !== req.user.userId && req.user.role !== 'admin') {
+            return res.status(403).json({ message: 'Not authorized to upload a picture for this class' });
+        }
+
+        const imageUrl = '/uploads/classes/' + req.file.filename;
+
         const [result] = await pool.query(
             'UPDATE classes SET image_url = ? WHERE id = ?',
             [imageUrl, id]

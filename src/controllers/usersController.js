@@ -239,7 +239,7 @@ exports.updateUser = async (req, res) => {
 exports.deletePicture = async (req, res) => {
     const { id } = req.params;
 
-    if (req.user.userId !== parseInt(id)) {
+    if (req.user.userId !== parseInt(id) && req.user.role !== 'admin') {
         return res.status(403).json({ message: 'Not authorized' });
     }
 
@@ -265,7 +265,7 @@ exports.uploadPicture = async (req, res) => {
     const { id } = req.params;
     
     // Ensure the logged-in user is updating their own profile picture
-    if (req.user.userId !== parseInt(id)) {
+    if (req.user.userId !== parseInt(id) && req.user.role !== 'admin') {
         return res.status(403).json({ message: 'Not authorized to update this profile picture' });
     }
 
