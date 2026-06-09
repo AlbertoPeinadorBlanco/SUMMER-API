@@ -91,10 +91,10 @@ exports.getClassById = async (req, res) => {
 exports.createClass = async (req, res) => {
     const { 
         class_type_id, title, description, title_es, description_es, price, 
-        capacity, duration_minutes, starts_at, ends_at, location, is_online, difficulty_level, sport_type
+        capacity, duration_minutes, starts_at, ends_at, location, is_online, difficulty_level, sport_type, image_url
     } = req.body;
     
-    const instructor_id = req.user.userId;
+    const instructor_id = (req.user.role === 'admin' && req.body.instructor_id) ? req.body.instructor_id : req.user.userId;
     
     
     try {
@@ -108,11 +108,18 @@ exports.createClass = async (req, res) => {
         const formattedStartsAt = starts_at ? new Date(starts_at) : null;
         const formattedEndsAt = ends_at ? new Date(ends_at) : null;
 
+        let fields = `instructor_id, class_type_id, title, description, title_es, description_es, price, capacity, duration_minutes, starts_at, ends_at, location, is_online, difficulty_level, sport_type, is_active`;
+        let placeholders = `?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?`;
+        let params = [instructor_id, class_type_id, title, description, title_es || null, description_es || null, price, capacity, duration_minutes, formattedStartsAt, formattedEndsAt, location, is_online, difficulty_level || 1, sport_type || 'surf', is_active];
+
+        if (req.user.role === 'admin' && image_url !== undefined) {
+            fields += `, image_url`;
+            placeholders += `, ?`;
+            params.push(image_url);
+        }
+
         const [result] = await pool.query(
-            `INSERT INTO classes 
-            (instructor_id, class_type_id, title, description, title_es, description_es, price, capacity, duration_minutes, starts_at, ends_at, location, is_online, difficulty_level, sport_type, is_active) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [instructor_id, class_type_id, title, description, title_es || null, description_es || null, price, capacity, duration_minutes, formattedStartsAt, formattedEndsAt, location, is_online, difficulty_level || 1, sport_type || 'surf', is_active]
+            `INSERT INTO classes (${fields}) VALUES (${placeholders})`, params
         );
         await logUserAction(req, 'CREATE_CLASS', 'classes', result.insertId);
         res.status(201).json({ message: 'Class created', id: result.insertId, is_active });
@@ -160,7 +167,7 @@ exports.updateClass = async (req, res) => {
     const { 
         class_type_id, title, description, title_es, description_es, price, 
         capacity, duration_minutes, starts_at, ends_at, location, is_online, difficulty_level, sport_type,
-        is_active
+        is_active, image_url
     } = req.body;
     
     try {
@@ -181,14 +188,21 @@ exports.updateClass = async (req, res) => {
         const newApprovalStatus = req.user.role === 'admin' ? existing[0].approval_status : 'pending';
         const newIsActive = (req.user.role === 'admin' && is_active !== undefined) ? is_active : existing[0].is_active;
 
-        const [result] = await pool.query(
-            `UPDATE classes 
+        let updateQuery = `UPDATE classes 
              SET class_type_id = ?, title = ?, description = ?, title_es = ?, description_es = ?, price = ?, 
                  capacity = ?, duration_minutes = ?, starts_at = ?, ends_at = ?, 
-                 location = ?, is_online = ?, difficulty_level = ?, sport_type = ?, approval_status = ?, is_active = ?
-             WHERE id = ?`,
-            [class_type_id, title, description, title_es || null, description_es || null, price, capacity, duration_minutes, formattedStartsAt, formattedEndsAt, location, is_online, difficulty_level || 1, sport_type || 'surf', newApprovalStatus, newIsActive, id]
-        );
+                 location = ?, is_online = ?, difficulty_level = ?, sport_type = ?, approval_status = ?, is_active = ?`;
+        const params = [class_type_id, title, description, title_es || null, description_es || null, price, capacity, duration_minutes, formattedStartsAt, formattedEndsAt, location, is_online, difficulty_level || 1, sport_type || 'surf', newApprovalStatus, newIsActive];
+
+        if (req.user.role === 'admin' && image_url !== undefined) {
+            updateQuery += `, image_url = ?`;
+            params.push(image_url);
+        }
+
+        updateQuery += ` WHERE id = ?`;
+        params.push(id);
+
+        const [result] = await pool.query(updateQuery, params);
 
         if (result.affectedRows === 0) {
             return res.status(404).json({ message: 'Class not found' });
