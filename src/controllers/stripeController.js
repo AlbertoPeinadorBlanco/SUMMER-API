@@ -107,14 +107,6 @@ exports.webhook = async (req, res) => {
                     await logUserAction({ user: { id: userId }, ip: 'stripe', headers: {}, socket: { remoteAddress: 'stripe' } }, 'BUY_ADVERT_SLOT', 'classes', classId);
                 }
             }
-            else if (itemKey === 'video_upgrade') {
-                await pool.query('UPDATE instructor_profiles SET has_video_upgrade = TRUE WHERE user_id = ?', [userId]);
-                await logUserAction({ user: { id: userId }, ip: 'stripe', headers: {}, socket: { remoteAddress: 'stripe' } }, 'BUY_UPGRADE', 'instructor_profiles', userId, { type: 'video' });
-            }
-            else if (itemKey === 'link_upgrade') {
-                await pool.query('UPDATE instructor_profiles SET has_link_upgrade = TRUE WHERE user_id = ?', [userId]);
-                await logUserAction({ user: { id: userId }, ip: 'stripe', headers: {}, socket: { remoteAddress: 'stripe' } }, 'BUY_UPGRADE', 'instructor_profiles', userId, { type: 'link' });
-            }
             else if (itemKey === 'badge_upgrade') {
                 await pool.query('UPDATE instructor_profiles SET has_badge_upgrade = TRUE WHERE user_id = ?', [userId]);
                 await logUserAction({ user: { id: userId }, ip: 'stripe', headers: {}, socket: { remoteAddress: 'stripe' } }, 'BUY_UPGRADE', 'instructor_profiles', userId, { type: 'badge' });

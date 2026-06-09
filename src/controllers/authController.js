@@ -56,9 +56,8 @@ exports.getMe = async (req, res) => {
             SELECT u.id, u.username, u.email, u.first_name, u.last_name, u.phone,
                    u.profile_picture_url, u.is_active, u.is_verified, u.avatar_color,
                    r.name as role,
-                   ip.has_video_upgrade, ip.has_link_upgrade, ip.has_badge_upgrade,
-                   ip.video_url, ip.booking_link, ip.available_today,
-                   ip.bio, ip.specialization, ip.allow_communications, ip.extra_advert_slots
+                   ip.bio, ip.specialization, ip.has_badge_upgrade, ip.available_today, ip.featured_until,
+                   ip.allow_communications, ip.extra_advert_slots
             FROM users u
             LEFT JOIN user_roles ur ON u.id = ur.user_id
             LEFT JOIN roles r ON ur.role_id = r.id

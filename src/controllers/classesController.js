@@ -25,7 +25,7 @@ exports.getAllClasses = async (req, res) => {
                    (SELECT COUNT(*) FROM bookings b WHERE b.class_id = c.id AND b.status_id != 3) as bookings_count,
                    u.first_name, u.last_name, u.profile_picture_url, u.username as instructor_username,
                    u.email, u.phone, u.is_verified,
-                   ip.video_url, ip.booking_link, ip.available_today, ip.featured_until, c.bumped_at, ip.rating, ip.show_contact_info,
+                   ip.available_today, ip.featured_until, c.bumped_at, ip.rating, ip.show_contact_info,
                    ranked.global_rank
             FROM classes c
             JOIN class_types ct ON c.class_type_id = ct.id
@@ -70,7 +70,7 @@ exports.getClassById = async (req, res) => {
                    (SELECT COUNT(*) FROM bookings b WHERE b.class_id = c.id AND b.status_id != 3) as bookings_count,
                    u.first_name, u.last_name, u.profile_picture_url, u.username as instructor_username,
                    u.email, u.phone, u.is_verified,
-                   ip.video_url, ip.booking_link, ip.available_today, ip.featured_until, c.bumped_at, ip.rating, ip.show_contact_info
+                   ip.available_today, ip.featured_until, c.bumped_at, ip.rating, ip.show_contact_info
             FROM classes c
             JOIN class_types ct ON c.class_type_id = ct.id
             JOIN users u ON c.instructor_id = u.id

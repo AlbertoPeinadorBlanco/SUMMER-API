@@ -49,8 +49,8 @@ exports.getUserDetails = async (req, res) => {
         const userQuery = `
             SELECT u.id, u.username, u.email, u.first_name, u.last_name, u.phone, u.created_at,
                    u.is_verified, u.profile_picture_url,
-                   r.name as role, ip.bio, ip.specialization, ip.rating, ip.has_video_upgrade, 
-                   ip.has_link_upgrade, ip.has_badge_upgrade, ip.video_url, ip.booking_link, ip.available_today, ip.featured_until
+                   r.name as role, ip.bio, ip.specialization, ip.rating, 
+                   ip.has_badge_upgrade, ip.available_today, ip.featured_until
             FROM users u
             LEFT JOIN user_roles ur ON u.id = ur.user_id
             LEFT JOIN roles r ON ur.role_id = r.id
@@ -226,16 +226,13 @@ exports.updateUser = async (req, res) => {
 // Update instructor perks
 exports.updateInstructorPerks = async (req, res) => {
     const { id } = req.params;
-    const { has_video_upgrade, has_link_upgrade, has_badge_upgrade, featured_until, bump_instructor } = req.body;
-    
+    const { has_badge_upgrade, featured_until, bump_instructor } = req.body;
+
     try {
-        let query = `UPDATE instructor_profiles 
-             SET has_video_upgrade = ?, has_link_upgrade = ?, has_badge_upgrade = ?, featured_until = ?`;
+        let query = `UPDATE instructor_profiles SET has_badge_upgrade = ?, featured_until = ?`;
         const params = [
-            has_video_upgrade ? 1 : 0, 
-            has_link_upgrade ? 1 : 0, 
             has_badge_upgrade ? 1 : 0, 
-            featured_until ? new Date(featured_until) : null
+            featured_until || null
         ];
 
         if (bump_instructor) {
@@ -251,7 +248,7 @@ exports.updateInstructorPerks = async (req, res) => {
             return res.status(404).json({ message: 'Instructor profile not found for this user' });
         }
 
-        await logAdminAction(req, 'UPDATE_PERKS', 'instructor_profiles', id, { has_video_upgrade, has_link_upgrade, has_badge_upgrade, featured_until, bump_instructor });
+        await logAdminAction(req, 'UPDATE_PERKS', 'instructor_profiles', id, { has_badge_upgrade, featured_until, bump_instructor });
         res.json({ message: 'Instructor perks updated successfully' });
     } catch (error) {
         res.status(500).json({ message: 'Error updating perks', error: error.message });

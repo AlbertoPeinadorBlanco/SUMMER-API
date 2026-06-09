@@ -12,7 +12,7 @@ exports.getAllUsers = async (req, res) => {
         let query = `
             SELECT u.id, u.username, u.email, u.first_name, u.last_name, u.phone, u.is_active, u.is_verified, u.created_at, u.updated_at, u.profile_picture_url, u.avatar_color,
                    r.name as role, ip.bio, ip.specialization, ip.rating,
-                   ip.has_video_upgrade, ip.has_link_upgrade, ip.has_badge_upgrade, ip.video_url, ip.booking_link, ip.available_today,
+                   ip.has_badge_upgrade, ip.available_today,
                    ip.featured_until, ip.allow_communications, ip.extra_advert_slots, ip.bumped_at, ip.show_contact_info
             FROM users u
             LEFT JOIN user_roles ur ON u.id = ur.user_id
@@ -53,7 +53,7 @@ exports.getUserById = async (req, res) => {
         const query = `
             SELECT u.id, u.username, u.email, u.first_name, u.last_name, u.phone, u.is_active, u.is_verified, u.created_at, u.updated_at, u.profile_picture_url, u.avatar_color,
                    r.name as role, ip.bio, ip.specialization, ip.rating,
-                   ip.has_video_upgrade, ip.has_link_upgrade, ip.has_badge_upgrade, ip.video_url, ip.booking_link, ip.available_today,
+                   ip.has_badge_upgrade, ip.available_today,
                    ip.featured_until, ip.allow_communications, ip.extra_advert_slots, ip.bumped_at, ip.show_contact_info
             FROM users u
             LEFT JOIN user_roles ur ON u.id = ur.user_id
@@ -300,9 +300,7 @@ exports.buyUpgrade = async (req, res) => {
     if (req.user.userId !== parseInt(id)) return res.status(403).json({ message: 'Not authorized' });
 
     let column = '';
-    if (type === 'video') column = 'has_video_upgrade';
-    else if (type === 'link') column = 'has_link_upgrade';
-    else if (type === 'badge') column = 'has_badge_upgrade';
+    if (type === 'badge') column = 'has_badge_upgrade';
     else return res.status(400).json({ message: 'Invalid upgrade type' });
 
     try {
@@ -317,7 +315,7 @@ exports.buyUpgrade = async (req, res) => {
 // Update instructor profile details
 exports.updateInstructorProfile = async (req, res) => {
     const { id } = req.params;
-    const { bio, specialization, video_url, booking_link, available_today, allow_communications, show_contact_info } = req.body;
+    const { bio, specialization, available_today, allow_communications, show_contact_info } = req.body;
     
     if (req.user.userId !== parseInt(id)) return res.status(403).json({ message: 'Not authorized' });
 
@@ -336,12 +334,6 @@ exports.updateInstructorProfile = async (req, res) => {
         if (allow_communications !== undefined) { updates.push('allow_communications = ?'); params.push(allow_communications ? 1 : 0); }
         if (show_contact_info !== undefined) { updates.push('show_contact_info = ?'); params.push(show_contact_info ? 1 : 0); }
 
-        if (video_url !== undefined && profile.has_video_upgrade) {
-            updates.push('video_url = ?'); params.push(video_url);
-        }
-        if (booking_link !== undefined && profile.has_link_upgrade) {
-            updates.push('booking_link = ?'); params.push(booking_link);
-        }
         if (available_today !== undefined && profile.has_badge_upgrade) {
             updates.push('available_today = ?'); params.push(available_today ? 1 : 0);
         }
