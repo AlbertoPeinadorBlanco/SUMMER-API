@@ -47,7 +47,7 @@ exports.getAllClasses = async (req, res) => {
 
         query += ` ORDER BY CASE WHEN ip.featured_until IS NOT NULL AND ip.featured_until > NOW() THEN 1 ELSE 2 END ASC, 
                      CASE WHEN c.bumped_at IS NOT NULL AND c.bumped_at > DATE_SUB(NOW(), INTERVAL 24 HOUR) THEN c.bumped_at ELSE '2000-01-01' END DESC, 
-                     (CAST(c.id AS SIGNED) - FLOOR(UNIX_TIMESTAMP(NOW()) / 3600)) % 1000000 DESC,
+                     RAND(),
                      c.created_at DESC`;
 
         const [rows] = await pool.query(query, params);

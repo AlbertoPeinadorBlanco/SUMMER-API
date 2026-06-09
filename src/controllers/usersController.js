@@ -34,6 +34,7 @@ exports.getAllUsers = async (req, res) => {
         if (req.query.role === 'instructor') {
             query += ` ORDER BY CASE WHEN ip.featured_until IS NOT NULL AND ip.featured_until > NOW() THEN 1 ELSE 2 END ASC, 
                        CASE WHEN ip.bumped_at IS NOT NULL AND ip.bumped_at > DATE_SUB(NOW(), INTERVAL 24 HOUR) THEN ip.bumped_at ELSE '2000-01-01' END DESC, 
+                       RAND(),
                        u.created_at DESC`;
         }
 
