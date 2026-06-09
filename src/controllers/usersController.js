@@ -12,7 +12,6 @@ exports.getAllUsers = async (req, res) => {
         let query = `
             SELECT u.id, u.username, u.email, u.first_name, u.last_name, u.phone, u.is_active, u.is_verified, u.created_at, u.updated_at, u.profile_picture_url, u.avatar_color,
                    r.name as role, ip.bio, ip.specialization, ip.rating,
-                   ip.has_badge_upgrade, ip.available_today,
                    ip.featured_until, ip.allow_communications, ip.extra_advert_slots, ip.bumped_at, ip.show_contact_info
             FROM users u
             LEFT JOIN user_roles ur ON u.id = ur.user_id
@@ -53,7 +52,6 @@ exports.getUserById = async (req, res) => {
         const query = `
             SELECT u.id, u.username, u.email, u.first_name, u.last_name, u.phone, u.is_active, u.is_verified, u.created_at, u.updated_at, u.profile_picture_url, u.avatar_color,
                    r.name as role, ip.bio, ip.specialization, ip.rating,
-                   ip.has_badge_upgrade, ip.available_today,
                    ip.featured_until, ip.allow_communications, ip.extra_advert_slots, ip.bumped_at, ip.show_contact_info
             FROM users u
             LEFT JOIN user_roles ur ON u.id = ur.user_id
@@ -300,8 +298,7 @@ exports.buyUpgrade = async (req, res) => {
     if (req.user.userId !== parseInt(id)) return res.status(403).json({ message: 'Not authorized' });
 
     let column = '';
-    if (type === 'badge') column = 'has_badge_upgrade';
-    else return res.status(400).json({ message: 'Invalid upgrade type' });
+    return res.status(400).json({ message: 'Invalid upgrade type' });
 
     try {
         await pool.query(`UPDATE instructor_profiles SET ${column} = TRUE WHERE user_id = ?`, [id]);
@@ -315,7 +312,7 @@ exports.buyUpgrade = async (req, res) => {
 // Update instructor profile details
 exports.updateInstructorProfile = async (req, res) => {
     const { id } = req.params;
-    const { bio, specialization, available_today, allow_communications, show_contact_info } = req.body;
+    const { bio, specialization, allow_communications, show_contact_info } = req.body;
     
     if (req.user.userId !== parseInt(id)) return res.status(403).json({ message: 'Not authorized' });
 
@@ -333,10 +330,6 @@ exports.updateInstructorProfile = async (req, res) => {
         if (specialization !== undefined) { updates.push('specialization = ?'); params.push(specialization); }
         if (allow_communications !== undefined) { updates.push('allow_communications = ?'); params.push(allow_communications ? 1 : 0); }
         if (show_contact_info !== undefined) { updates.push('show_contact_info = ?'); params.push(show_contact_info ? 1 : 0); }
-
-        if (available_today !== undefined && profile.has_badge_upgrade) {
-            updates.push('available_today = ?'); params.push(available_today ? 1 : 0);
-        }
 
         if (updates.length > 0) {
             params.push(id);

@@ -107,10 +107,6 @@ exports.webhook = async (req, res) => {
                     await logUserAction({ user: { id: userId }, ip: 'stripe', headers: {}, socket: { remoteAddress: 'stripe' } }, 'BUY_ADVERT_SLOT', 'classes', classId);
                 }
             }
-            else if (itemKey === 'badge_upgrade') {
-                await pool.query('UPDATE instructor_profiles SET has_badge_upgrade = TRUE WHERE user_id = ?', [userId]);
-                await logUserAction({ user: { id: userId }, ip: 'stripe', headers: {}, socket: { remoteAddress: 'stripe' } }, 'BUY_UPGRADE', 'instructor_profiles', userId, { type: 'badge' });
-            }
             else if (itemKey === 'featured_instructor') { // Note: 'featured_instructor' is the manual upgrade logic, let's map it.
                 // For featured spot, we set it 7 days from now
                 await pool.query('UPDATE instructor_profiles SET featured_until = DATE_ADD(NOW(), INTERVAL 7 DAY) WHERE user_id = ?', [userId]);
