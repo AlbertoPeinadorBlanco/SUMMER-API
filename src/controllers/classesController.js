@@ -9,7 +9,7 @@ exports.getAllClasses = async (req, res) => {
                 SELECT c.id,
                        ROW_NUMBER() OVER (
                            ORDER BY CASE WHEN ip.featured_until IS NOT NULL AND ip.featured_until > NOW() THEN 1 ELSE 2 END ASC, 
-                                    CASE WHEN c.bumped_at IS NOT NULL AND c.bumped_at > DATE_SUB(NOW(), INTERVAL 24 HOUR) THEN c.bumped_at ELSE '2000-01-01' END DESC, 
+                                    CASE WHEN GREATEST(IFNULL(c.bumped_at, '2000-01-01'), IFNULL(ip.bumped_at, '2000-01-01')) > DATE_SUB(NOW(), INTERVAL 24 HOUR) THEN GREATEST(IFNULL(c.bumped_at, '2000-01-01'), IFNULL(ip.bumped_at, '2000-01-01')) ELSE '2000-01-01' END DESC, 
                                     (CAST(c.id AS SIGNED) - FLOOR(UNIX_TIMESTAMP(NOW()) / 3600)) % 1000000 DESC,
                                     c.created_at DESC
                        ) as global_rank
@@ -25,7 +25,7 @@ exports.getAllClasses = async (req, res) => {
                    (SELECT COUNT(*) FROM bookings b WHERE b.class_id = c.id AND b.status_id != 3) as bookings_count,
                    u.first_name, u.last_name, u.profile_picture_url, u.username as instructor_username,
                    u.email, u.phone, u.is_verified,
-                   ip.featured_until, c.bumped_at, ip.rating, ip.show_contact_info,
+                   ip.featured_until, CASE WHEN ip.bumped_at IS NOT NULL AND (c.bumped_at IS NULL OR ip.bumped_at > c.bumped_at) THEN ip.bumped_at ELSE c.bumped_at END AS bumped_at, ip.rating, ip.show_contact_info,
                    ranked.global_rank
             FROM classes c
             JOIN class_types ct ON c.class_type_id = ct.id
@@ -46,7 +46,7 @@ exports.getAllClasses = async (req, res) => {
         }
 
         query += ` ORDER BY CASE WHEN ip.featured_until IS NOT NULL AND ip.featured_until > NOW() THEN 1 ELSE 2 END ASC, 
-                     CASE WHEN c.bumped_at IS NOT NULL AND c.bumped_at > DATE_SUB(NOW(), INTERVAL 24 HOUR) THEN c.bumped_at ELSE '2000-01-01' END DESC, 
+                     CASE WHEN GREATEST(IFNULL(c.bumped_at, '2000-01-01'), IFNULL(ip.bumped_at, '2000-01-01')) > DATE_SUB(NOW(), INTERVAL 24 HOUR) THEN GREATEST(IFNULL(c.bumped_at, '2000-01-01'), IFNULL(ip.bumped_at, '2000-01-01')) ELSE '2000-01-01' END DESC, 
                      RAND(),
                      c.created_at DESC`;
 
@@ -70,7 +70,7 @@ exports.getClassById = async (req, res) => {
                    (SELECT COUNT(*) FROM bookings b WHERE b.class_id = c.id AND b.status_id != 3) as bookings_count,
                    u.first_name, u.last_name, u.profile_picture_url, u.username as instructor_username,
                    u.email, u.phone, u.is_verified,
-                   ip.featured_until, c.bumped_at, ip.rating, ip.show_contact_info
+                   ip.featured_until, CASE WHEN ip.bumped_at IS NOT NULL AND (c.bumped_at IS NULL OR ip.bumped_at > c.bumped_at) THEN ip.bumped_at ELSE c.bumped_at END AS bumped_at, ip.rating, ip.show_contact_info
             FROM classes c
             JOIN class_types ct ON c.class_type_id = ct.id
             JOIN users u ON c.instructor_id = u.id

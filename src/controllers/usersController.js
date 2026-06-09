@@ -38,7 +38,7 @@ exports.getAllUsers = async (req, res) => {
         }
 
         const [rows] = await pool.query(query, params);
-        res.set('Cache-Control', 'public, max-age=300'); // Cache for 5 minutes
+        res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
         res.json(rows);
     } catch (error) {
         res.status(500).json({ message: 'Error fetching users', error: error.message });
