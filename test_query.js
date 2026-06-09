@@ -1,14 +1,1 @@
-const pool = require('./src/config/db');
-
-async function testQuery() {
-    try {
-        // Boost class ID 3 for example
-        await pool.query('UPDATE classes SET bumped_at = NOW() WHERE id = 3');
-        console.log('Class 3 bumped successfully.');
-    } catch (e) {
-        console.error('Query Error:', e.message);
-    }
-    process.exit(0);
-}
-
-testQuery();
+const mysql = require('mysql2/promise'); require('dotenv').config(); async function run() { const pool = mysql.createPool({ host: process.env.DB_HOST, user: process.env.DB_USER, password: process.env.DB_PASSWORD, database: process.env.DB_NAME, port: process.env.DB_PORT }); const [rows] = await pool.query('SELECT * FROM classes WHERE id = 25'); console.log(rows[0]); process.exit(); } run();

@@ -21,7 +21,7 @@ exports.getAllClasses = async (req, res) => {
             SELECT c.id, c.instructor_id, ct.name as class_type, c.title, c.description, 
                    c.price, c.capacity, c.duration_minutes, c.starts_at, c.ends_at, 
                    c.location, c.is_online, c.image_url, c.is_active, c.created_at,
-                   c.title_es, c.description_es, c.difficulty_level, c.sport_type, c.approval_status,
+                   c.title_es, c.description_es, c.difficulty_level, c.sport_type, c.approval_status, c.is_fully_booked,
                    (SELECT COUNT(*) FROM bookings b WHERE b.class_id = c.id AND b.status_id != 3) as bookings_count,
                    u.first_name, u.last_name, u.profile_picture_url, u.username as instructor_username,
                    u.email, u.phone, u.is_verified,
@@ -66,7 +66,7 @@ exports.getClassById = async (req, res) => {
             SELECT c.id, c.instructor_id, ct.name as class_type, c.title, c.description, 
                    c.price, c.capacity, c.duration_minutes, c.starts_at, c.ends_at, 
                    c.location, c.is_online, c.image_url, c.is_active, c.created_at,
-                   c.title_es, c.description_es, c.difficulty_level, c.sport_type, c.approval_status,
+                   c.title_es, c.description_es, c.difficulty_level, c.sport_type, c.approval_status, c.is_fully_booked,
                    (SELECT COUNT(*) FROM bookings b WHERE b.class_id = c.id AND b.status_id != 3) as bookings_count,
                    u.first_name, u.last_name, u.profile_picture_url, u.username as instructor_username,
                    u.email, u.phone, u.is_verified,
@@ -111,6 +111,12 @@ exports.createClass = async (req, res) => {
         let fields = `instructor_id, class_type_id, title, description, title_es, description_es, price, capacity, duration_minutes, starts_at, ends_at, location, is_online, difficulty_level, sport_type, is_active`;
         let placeholders = `?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?`;
         let params = [instructor_id, class_type_id, title, description, title_es || null, description_es || null, price, capacity, duration_minutes, formattedStartsAt, formattedEndsAt, location, is_online, difficulty_level || 1, sport_type || 'surf', is_active];
+
+        if (req.body.is_fully_booked !== undefined) {
+            fields += `, is_fully_booked`;
+            placeholders += `, ?`;
+            params.push(req.body.is_fully_booked ? 1 : 0);
+        }
 
         if (req.user.role === 'admin' && image_url !== undefined) {
             fields += `, image_url`;
@@ -193,6 +199,11 @@ exports.updateClass = async (req, res) => {
                  capacity = ?, duration_minutes = ?, starts_at = ?, ends_at = ?, 
                  location = ?, is_online = ?, difficulty_level = ?, sport_type = ?, approval_status = ?, is_active = ?`;
         const params = [class_type_id, title, description, title_es || null, description_es || null, price, capacity, duration_minutes, formattedStartsAt, formattedEndsAt, location, is_online, difficulty_level || 1, sport_type || 'surf', newApprovalStatus, newIsActive];
+
+        if (req.body.is_fully_booked !== undefined) {
+            updateQuery += `, is_fully_booked = ?`;
+            params.push(req.body.is_fully_booked ? 1 : 0);
+        }
 
         if (req.user.role === 'admin' && image_url !== undefined) {
             updateQuery += `, image_url = ?`;

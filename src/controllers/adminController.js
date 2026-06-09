@@ -77,7 +77,7 @@ exports.getUserDetails = async (req, res) => {
         let ratings = [];
         if (user.role === 'instructor' || user.role === 'admin') {
             const advertsQuery = `
-                SELECT id, title, price, is_active, created_at, capacity, starts_at, ends_at, image_url
+                SELECT id, title, price, is_active, created_at, capacity, starts_at, ends_at, image_url, is_fully_booked
                 FROM classes
                 WHERE instructor_id = ?
                 ORDER BY created_at DESC
