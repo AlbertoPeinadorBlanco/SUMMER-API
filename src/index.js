@@ -116,12 +116,20 @@ pool.query('ALTER TABLE users DROP COLUMN tier_expires_at')
   .then(() => console.log('Dropped tier_expires_at from users'))
   .catch(e => console.log('tier_expires_at drop migration:', e.message));
 
-pool.query("INSERT IGNORE INTO platform_pricings (item_key, price_eur, description) VALUES ('buy_advert_slot', 10.00, 'Purchase 1 permanent extra advert slot')")
+pool.query("INSERT IGNORE INTO platform_pricings (item_key, price, currency, description) VALUES ('buy_advert_slot', 10.00, 'EUR', 'Purchase 1 permanent extra advert slot')")
   .then(() => console.log('Added buy_advert_slot pricing'))
   .catch(e => console.log('pricing migration:', e.message));
 
-pool.query("INSERT IGNORE INTO platform_pricings (item_key, price_eur, description) VALUES ('bump_instructor', 2.00, 'Boost Instructor Profile for 24h')")
+pool.query("INSERT IGNORE INTO platform_pricings (item_key, price, currency, description) VALUES ('bump_instructor', 2.00, 'EUR', 'Boost Instructor Profile for 24h')")
   .then(() => console.log('Added bump_instructor pricing'))
+  .catch(e => console.log('pricing migration:', e.message));
+
+pool.query("INSERT IGNORE INTO platform_pricings (item_key, price, currency, description) VALUES ('bump_advert', 2.00, 'EUR', 'Boost Advert for 24h')")
+  .then(() => console.log('Added bump_advert pricing'))
+  .catch(e => console.log('pricing migration:', e.message));
+
+pool.query("INSERT IGNORE INTO platform_pricings (item_key, price, currency, description) VALUES ('featured_instructor', 20.00, 'EUR', 'Featured Instructor for 7 days')")
+  .then(() => console.log('Added featured_instructor pricing'))
   .catch(e => console.log('pricing migration:', e.message));
 
 const createRatingsTableQuery = `
